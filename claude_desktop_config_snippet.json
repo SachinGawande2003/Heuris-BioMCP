@@ -1,12 +1,15 @@
 {
-  "_comment": "Add this to your Claude Desktop config file.",
+  "_comment": "Add the mcpServers block to your Claude Desktop config file.",
   "_mac_path": "~/Library/Application Support/Claude/claude_desktop_config.json",
   "_win_path": "%APPDATA%/Claude/claude_desktop_config.json",
   "mcpServers": {
     "biomcp": {
       "command": "biomcp",
       "env": {
-        "NCBI_API_KEY": "3325080d82d285ffc106d54008fc8088c408"BIOMCP_LOG_LEVEL": "INFO"
+        "NCBI_API_KEY": "your_ncbi_api_key_here",
+        "NVIDIA_BOLTZ2_API_KEY": "your_boltz2_key_here",
+        "NVIDIA_EVO2_API_KEY": "your_evo2_key_here",
+        "BIOMCP_LOG_LEVEL": "INFO"
       }
     }
   }
