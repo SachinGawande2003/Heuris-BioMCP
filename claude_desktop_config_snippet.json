@@ -1,0 +1,13 @@
+{
+  "_comment": "Add this to your Claude Desktop config file.",
+  "_mac_path": "~/Library/Application Support/Claude/claude_desktop_config.json",
+  "_win_path": "%APPDATA%/Claude/claude_desktop_config.json",
+  "mcpServers": {
+    "biomcp": {
+      "command": "biomcp",
+      "env": {
+        "NCBI_API_KEY": "3325080d82d285ffc106d54008fc8088c408"BIOMCP_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
