@@ -1215,9 +1215,9 @@ def create_server() -> Server:
             icon_data = [Icon(src=f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode()}")]
 
     server = Server(
-        "biomcp",
+        "heuris-biomcp",
         version="2.0.0",
-        instructions="BioMCP v2 - Connect Claude to 20+ biological databases and AI models. Tools include PubMed, UniProt, AlphaFold, ChEMBL, NVIDIA Boltz-2, and more.",
+        instructions="Heuris-BioMCP - Connect Claude to 20+ biological databases and AI models. Tools include PubMed, UniProt, AlphaFold, ChEMBL, NVIDIA Boltz-2, and more.",
         website_url="https://github.com/SachinGawande2003/BioMCP",
         icons=icon_data,
     )

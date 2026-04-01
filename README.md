@@ -1,4 +1,4 @@
-# 🧬 BioMCP — Bioinformatics Model Context Protocol Server
+# 🧬 Heuris-Heuris-BioMCP — Bioinformatics Model Context Protocol Server
 
 <div align="center">
 
@@ -20,7 +20,7 @@ Connect Claude to every major biological database and state-of-the-art AI models
 
 ## Live Demo
 
-Try BioMCP without installing — connect to our live server:
+Try Heuris-BioMCP without installing — connect to our live server:
 
 ```
 https://heuris-biomcp.onrender.com/sse
@@ -44,29 +44,29 @@ Add to your `claude_desktop_config.json`:
 
 ---
 
-## See BioMCP in Action
+## See Heuris-BioMCP in Action
 
-![BioMCP Demo](assets/biomcp-demo.gif)
+![Heuris-BioMCP Demo](assets/biomcp-demo.gif)
 
 ### Quick Demo Video
 
-Watch how to connect BioMCP to Claude Desktop:
+Watch how to connect Heuris-BioMCP to Claude Desktop:
 
 <a href="https://www.youtube.com/watch?v=YOUR_VIDEO_ID">
   <img src="assets/youtube-thumbnail.png" alt="Watch Demo" width="400"/>
 </a>
 
-> **Tip**: Coming soon - video walkthrough of connecting BioMCP and running your first query!
+> **Tip**: Coming soon - video walkthrough of connecting Heuris-BioMCP and running your first query!
 
 ---
 
-## What is BioMCP?
+## What is Heuris-BioMCP?
 
-BioMCP bridges Claude and the world's life sciences databases through the [Model Context Protocol](https://modelcontextprotocol.io). Ask Claude to **search PubMed**, **predict protein structure** with AI, **generate DNA sequences**, **find drug targets**, **query clinical trials**, **analyze single-cell data**, **verify biological claims**, or **generate research hypotheses** — all in natural language, all in real time.
+Heuris-BioMCP bridges Claude and the world's life sciences databases through the [Model Context Protocol](https://modelcontextprotocol.io). Ask Claude to **search PubMed**, **predict protein structure** with AI, **generate DNA sequences**, **find drug targets**, **query clinical trials**, **analyze single-cell data**, **verify biological claims**, or **generate research hypotheses** — all in natural language, all in real time.
 
 ```
 You → "What drugs target EGFR and what clinical trials are recruiting?"
-Claude + BioMCP → Queries ChEMBL + ClinicalTrials.gov simultaneously → Structured answer
+Claude + Heuris-BioMCP → Queries ChEMBL + ClinicalTrials.gov simultaneously → Structured answer
 ```
 
 ---
@@ -233,7 +233,7 @@ Add to your Claude Desktop config:
 
 Deploy to Render with one click:
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/SachinGawande2003/BioMCP)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/SachinGawande2003/Heuris-BioMCP)
 
 Or manually:
 1. Fork this repository
@@ -476,11 +476,11 @@ mypy src/
 
 ## Citation
 
-If you use BioMCP in your research, please cite:
+If you use Heuris-BioMCP in your research, please cite:
 
 ```bibtex
 @software{biomcp2025,
-  title   = {BioMCP v2: A Comprehensive MCP Server for Bioinformatics, AI Models, and Life Sciences},
+  title   = {Heuris-BioMCP v2: A Comprehensive MCP Server for Bioinformatics, AI Models, and Life Sciences},
   year    = {2025},
   url     = {https://github.com/SachinGawande2003/biomcp},
   license = {MIT}
@@ -497,5 +497,5 @@ MIT License — free for academic and commercial use.
 
 <div align="center">
 Built for researchers, by researchers. 🔬<br>
-<b>Star ⭐ this repo if BioMCP helps your science!</b>
+<b>Star ⭐ this repo if Heuris-BioMCP helps your science!</b>
 </div>
