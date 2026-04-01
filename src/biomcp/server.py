@@ -86,13 +86,10 @@ from typing import Any
 
 from loguru import logger
 from mcp.server import Server
-from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from starlette.applications import Starlette
-from starlette.routing import Route
-from starlette.responses import JSONResponse
+from biomcp.utils import close_http_client, format_error, format_success
 
 from biomcp.utils import close_http_client, format_error, format_success
 
@@ -1230,7 +1227,7 @@ async def _run() -> None:
     )
 
     logger.info("🧬 BioMCP v2 server starting…")
-    logger.info(f"   Tools registered : {len(TOOLS)}")  # 57 tools
+    logger.info(f"   Tools registered : {len(TOOLS)}")
     logger.info(f"   Log level        : {os.getenv('BIOMCP_LOG_LEVEL', 'INFO')}")
     logger.info(
         f"   NCBI API key     : {'set' if os.getenv('NCBI_API_KEY') else 'not set (3 req/s)'}"
@@ -1249,30 +1246,41 @@ async def _run() -> None:
     )
 
     server = create_server()
-    http_port = os.getenv("BIOMCP_HTTP_PORT", "8080")
+    http_port = int(os.getenv("BIOMCP_HTTP_PORT", "8080"))
     transport_mode = os.getenv("BIOMCP_TRANSPORT", "stdio")
 
     if transport_mode == "http":
         logger.info(f"\n   🌐 HTTP mode enabled on port {http_port}")
-        logger.info("   Use: curl -N http://localhost:{http_port}/sse")
+        logger.info("   Use: curl -N http://localhost:{}/sse", http_port)
 
-        sse_transport = SseServerTransport("/messages")
+        from mcp.server.sse import SseServerTransport
+        from starlette.applications import Starlette
+        from starlette.routing import Route, Mount
+        from starlette.responses import Response
+
+        sse_transport = SseServerTransport("/messages/")
 
         async def handle_sse(request):
-            await sse_transport.handle_request(
-                request, server, server.create_initialization_options()
-            )
+            async with sse_transport.connect_sse(
+                request.scope, request.receive, request._send
+            ) as streams:
+                await server.run(
+                    streams[0],
+                    streams[1],
+                    server.create_initialization_options(),
+                )
+            return Response()
 
         app = Starlette(
             routes=[
-                Route("/sse", endpoint=handle_sse),
-                Route("/messages", endpoint=sse_transport.handle_request),
+                Route("/sse", endpoint=handle_sse, methods=["GET"]),
+                Mount("/messages/", app=sse_transport.handle_post_message),
             ],
         )
 
         import uvicorn
 
-        config = uvicorn.Config(app, host="0.0.0.0", port=int(http_port), log_level="info")
+        config = uvicorn.Config(app, host="0.0.0.0", port=http_port, log_level="info")
         server_uvicorn = uvicorn.Server(config)
         await server_uvicorn.serve()
     else:

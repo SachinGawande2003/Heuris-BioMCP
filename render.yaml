@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: biomcp
+    env: python
+    buildCommand: pip install -e .
+    startCommand: biomcp
+    envVars:
+      - key: BIOMCP_TRANSPORT
+        value: http
+      - key: BIOMCP_HTTP_PORT
+        value: 10000
+      - key: BIOMCP_LOG_LEVEL
+        value: INFO
+      - key: PYTHON_VERSION
+        value: "3.11"
