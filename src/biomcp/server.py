@@ -1212,12 +1212,18 @@ def create_server() -> Server:
         import base64
 
         with open(logo_path, "rb") as f:
-            icon_data = [Icon(src=f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode()}")]
+            icon_data = [
+                Icon(
+                    src=f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode()}",
+                    mimeType="image/jpeg",
+                    sizes=["48x48", "96x96", "128x128"],
+                )
+            ]
 
     server = Server(
         "heuris-biomcp",
         version="2.0.0",
-        instructions="Heuris-BioMCP - Connect Claude to 20+ biological databases and AI models. Tools include PubMed, UniProt, AlphaFold, ChEMBL, NVIDIA Boltz-2, and more.",
+        instructions="Heuris-BioMCP - Connect Claude to 20+ biological databases and AI models.",
         website_url="https://github.com/SachinGawande2003/BioMCP",
         icons=icon_data,
     )
