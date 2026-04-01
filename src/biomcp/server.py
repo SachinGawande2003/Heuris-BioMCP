@@ -86,8 +86,13 @@ from typing import Any
 
 from loguru import logger
 from mcp.server import Server
+from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
+
+from starlette.applications import Starlette
+from starlette.routing import Route
+from starlette.responses import JSONResponse
 
 from biomcp.utils import close_http_client, format_error, format_success
 
@@ -1244,16 +1249,44 @@ async def _run() -> None:
     )
 
     server = create_server()
-    try:
-        async with stdio_server() as (read_stream, write_stream):
-            await server.run(
-                read_stream,
-                write_stream,
-                server.create_initialization_options(),
+    http_port = os.getenv("BIOMCP_HTTP_PORT", "8080")
+    transport_mode = os.getenv("BIOMCP_TRANSPORT", "stdio")
+
+    if transport_mode == "http":
+        logger.info(f"\n   🌐 HTTP mode enabled on port {http_port}")
+        logger.info("   Use: curl -N http://localhost:{http_port}/sse")
+
+        sse_transport = SseServerTransport("/messages")
+
+        async def handle_sse(request):
+            await sse_transport.handle_request(
+                request, server, server.create_initialization_options()
             )
-    finally:
-        await close_http_client()
-        logger.info("BioMCP v2 shut down cleanly.")
+
+        app = Starlette(
+            routes=[
+                Route("/sse", endpoint=handle_sse),
+                Route("/messages", endpoint=sse_transport.handle_request),
+            ],
+        )
+
+        import uvicorn
+
+        config = uvicorn.Config(app, host="0.0.0.0", port=int(http_port), log_level="info")
+        server_uvicorn = uvicorn.Server(config)
+        await server_uvicorn.serve()
+    else:
+        logger.info("\n   📟 STDIO mode enabled")
+        try:
+            async with stdio_server() as (read_stream, write_stream):
+                await server.run(
+                    read_stream,
+                    write_stream,
+                    server.create_initialization_options(),
+                )
+        finally:
+            await close_http_client()
+            logger.info("BioMCP v2 shut down cleanly.")
 
 
 def main() -> None:
