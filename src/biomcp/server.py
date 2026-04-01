@@ -1203,7 +1203,12 @@ async def _dispatch(name: str, args: dict[str, Any]) -> str:
 
 
 def create_server() -> Server:
-    server = Server("biomcp")
+    server = Server(
+        "biomcp",
+        version="2.0.0",
+        instructions="BioMCP v2 - Connect Claude to 20+ biological databases and AI models. Tools include PubMed, UniProt, AlphaFold, ChEMBL, NVIDIA Boltz-2, and more.",
+        website_url="https://github.com/SachinGawande2003/BioMCP",
+    )
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
