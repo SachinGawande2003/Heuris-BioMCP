@@ -886,6 +886,205 @@ TOOLS: list[Tool] = [
         },
         ["goal"],
     ),
+    # ════════════════════════════════════════════════════════════════════
+    # CATEGORY 15: CRISPR Design Suite (5 tools) — NEW
+    # ════════════════════════════════════════════════════════════════════
+    _tool(
+        "design_crispr_guides",
+        "Design CRISPR sgRNA guides for a target gene with Doench 2016 efficiency scoring. "
+        "Fetches coding sequence from Ensembl, identifies all PAM sites, scores candidates by "
+        "GC content, positional nucleotides, poly-T avoidance, and seed region quality. "
+        "Returns ranked guides with ordering sequences ready for synthesis.",
+        {
+            "gene_symbol": _str_prop("HGNC gene symbol (e.g. 'TP53', 'KRAS', 'BRCA1')."),
+            "target_region": _enum_prop(
+                "Genomic region to target.",
+                ["early_exons", "all_coding", "promoter"],
+                "early_exons",
+            ),
+            "cas_variant": _enum_prop(
+                "Cas nuclease to design for.", ["SpCas9", "SaCas9", "Cas12a", "CjCas9"], "SpCas9"
+            ),
+            "n_guides": _int_prop("Top guides to return", 5, 1, 20),
+            "min_score": _float_prop(
+                "Minimum efficiency score to include (0–100). Default 40.", 40.0
+            ),
+        },
+        ["gene_symbol"],
+    ),
+    _tool(
+        "score_guide_efficiency",
+        "Score a user-provided sgRNA sequence using the Doench 2016 RS2-inspired multi-feature model. "
+        "Returns efficiency score (0–100) with full feature breakdown.",
+        {
+            "guide_sequence": _str_prop("17–24nt guide RNA sequence (5'→3', DNA convention)."),
+            "pam_sequence": _str_prop(
+                "PAM sequence for verification (e.g. 'TGG' for SpCas9). Optional."
+            ),
+            "cas_variant": _enum_prop("Cas variant.", ["SpCas9", "SaCas9", "Cas12a"], "SpCas9"),
+        },
+        ["guide_sequence"],
+    ),
+    _tool(
+        "predict_off_target_sites",
+        "Predict CRISPR off-target risk using seed-region analysis and optional NCBI BLAST.",
+        {
+            "guide_sequence": _str_prop("20nt sgRNA sequence (5'→3', DNA convention)."),
+            "cas_variant": _enum_prop("Cas variant.", ["SpCas9", "SaCas9", "Cas12a"], "SpCas9"),
+            "mismatches": _int_prop("Maximum mismatches to consider as off-target", 3, 1, 5),
+            "use_blast": _bool_prop(
+                "Submit seed region to NCBI BLAST for genomic hits (~30s extra).", True
+            ),
+        },
+        ["guide_sequence"],
+    ),
+    _tool(
+        "design_base_editor_guides",
+        "Design guides for precision base editing (CBE or ABE) to introduce specific mutations.",
+        {
+            "gene_symbol": _str_prop("HGNC gene symbol."),
+            "target_mutation": _str_prop(
+                "Target mutation (e.g. 'G12D', 'p.Arg175His', 'c.524G>A', 'W53*')."
+            ),
+            "editor_type": _enum_prop("Base editor type.", ["CBE", "ABE", "auto"], "auto"),
+        },
+        ["gene_symbol", "target_mutation"],
+    ),
+    _tool(
+        "get_crispr_repair_outcomes",
+        "Predict CRISPR-Cas9 repair outcomes: NHEJ frameshift probability, indel distribution, "
+        "and HDR efficiency estimate.",
+        {
+            "gene_symbol": _str_prop("HGNC gene symbol."),
+            "guide_sequence": _str_prop("20nt sgRNA sequence."),
+            "repair_template": _str_prop(
+                "Optional HDR template sequence (ssODN) for precise edit."
+            ),
+            "cell_line": _enum_prop(
+                "Cell line context for efficiency calibration.",
+                ["generic", "HEK293", "HeLa", "primary"],
+                "generic",
+            ),
+        },
+        ["gene_symbol", "guide_sequence"],
+    ),
+    # ════════════════════════════════════════════════════════════════════
+    # CATEGORY 16: FDA Drug Safety Intelligence (4 tools) — NEW
+    # ════════════════════════════════════════════════════════════════════
+    _tool(
+        "query_adverse_events",
+        "Query FDA FAERS (Adverse Event Reporting System) for drug safety signals.",
+        {
+            "drug_name": _str_prop(
+                "Drug name (generic or brand). E.g. 'adalimumab', 'Humira', 'ibuprofen'."
+            ),
+            "event_type": _enum_prop(
+                "Event category to focus on.",
+                [
+                    "all",
+                    "cardiac",
+                    "hepatic",
+                    "hematologic",
+                    "neurological",
+                    "renal",
+                    "hypersensitivity",
+                    "respiratory",
+                    "oncology",
+                ],
+                "all",
+            ),
+            "serious_only": _bool_prop(
+                "Only return serious adverse events (hospitalization, death).", False
+            ),
+            "max_results": _int_prop("Maximum reports to analyze", 50, 10, 500),
+        },
+        ["drug_name"],
+    ),
+    _tool(
+        "analyze_safety_signals",
+        "Pharmacovigilance disproportionality analysis on FDA FAERS data. "
+        "Calculates PRR, ROR, and IC (Information Component/Bayesian).",
+        {
+            "drug_name": _str_prop("Drug of interest."),
+            "event_terms": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Adverse event MedDRA terms to analyze.",
+            },
+        },
+        ["drug_name"],
+    ),
+    _tool(
+        "get_drug_label_warnings",
+        "Retrieve FDA-approved drug label safety sections directly from DailyMed.",
+        {
+            "drug_name": _str_prop("Generic or brand drug name (e.g. 'warfarin', 'Coumadin')."),
+        },
+        ["drug_name"],
+    ),
+    _tool(
+        "compare_drug_safety",
+        "Head-to-head safety comparison between 2–5 drugs using FDA FAERS data.",
+        {
+            "drugs": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "List of 2–5 drug names to compare.",
+            },
+            "event_category": _enum_prop(
+                "Focus event category.",
+                ["all", "cardiac", "hepatic", "hematologic", "neurological"],
+                "all",
+            ),
+        },
+        ["drugs"],
+    ),
+    # ════════════════════════════════════════════════════════════════════
+    # CATEGORY 17: Variant Interpreter (3 tools) — NEW
+    # ════════════════════════════════════════════════════════════════════
+    _tool(
+        "classify_variant",
+        "Classify a genetic variant using ACMG/AMP 2015 guidelines (Richards et al.) — "
+        "the global standard for clinical variant interpretation.",
+        {
+            "gene_symbol": _str_prop("HGNC gene symbol (e.g. 'BRCA1', 'TP53')."),
+            "variant": _str_prop(
+                "Variant notation: protein ('p.Arg175His'), cDNA ('c.524G>A'), rsID ('rs28934578'), or HGVS."
+            ),
+            "inheritance": _enum_prop(
+                "Inheritance pattern — affects PM2 threshold.",
+                ["AD", "AR", "XL", "unknown"],
+                "unknown",
+            ),
+        },
+        ["gene_symbol", "variant"],
+    ),
+    _tool(
+        "get_population_frequency",
+        "Query gnomAD v4 for population-specific allele frequencies across all major human populations.",
+        {
+            "variant_id": _str_prop(
+                "Variant in rsID ('rs28934578') or gnomAD format ('17-7674220-C-T')."
+            ),
+            "dataset": _enum_prop(
+                "gnomAD dataset version.", ["gnomad_r4", "gnomad_r2_1"], "gnomad_r4"
+            ),
+        },
+        ["variant_id"],
+    ),
+    _tool(
+        "lookup_clinvar_variant",
+        "Search ClinVar for clinical significance classifications and submission data.",
+        {
+            "gene_symbol": _str_prop(
+                "HGNC gene symbol (optional, used with variant for disambiguation)."
+            ),
+            "variant": _str_prop("Variant notation (rsID, HGVS, protein change). Optional."),
+            "clinvar_id": _str_prop("Direct ClinVar variation ID (most specific). Optional."),
+            "max_results": _int_prop("Maximum results to return", 5, 1, 20),
+        },
+        [],
+    ),
 ]
 
 
@@ -1089,6 +1288,48 @@ async def _raw_dispatch(name: str, args: dict[str, Any]) -> Any:
         get_disgenet_associations,
         get_pharmgkb_variants,
     )
+    from biomcp.tools.verify import (
+        detect_database_conflicts,
+        verify_biological_claim,
+    )
+    from biomcp.tools.protocol_generator import (
+        estimate_statistical_power,
+        generate_experimental_protocol,
+        suggest_cell_lines,
+    )
+    from biomcp.tools.extended_databases import (
+        get_biogrid_interactions,
+        search_orphan_diseases,
+        get_tcga_expression,
+        search_cellmarker,
+        get_encode_regulatory,
+        search_metabolomics,
+        get_ucsc_splice_variants,
+    )
+
+    # NEW: CRISPR Tools
+    from biomcp.tools.crispr_tools import (
+        design_crispr_guides,
+        score_guide_efficiency,
+        predict_off_target_sites,
+        design_base_editor_guides,
+        get_crispr_repair_outcomes,
+    )
+
+    # NEW: Drug Safety Tools
+    from biomcp.tools.drug_safety import (
+        query_adverse_events,
+        analyze_safety_signals,
+        get_drug_label_warnings,
+        compare_drug_safety,
+    )
+
+    # NEW: Variant Interpreter Tools
+    from biomcp.tools.variant_interpreter import (
+        classify_variant,
+        get_population_frequency,
+        lookup_clinvar_variant,
+    )
     from biomcp.tools.verify import verify_biological_claim, detect_database_conflicts
     from biomcp.tools.protocol_generator import (
         generate_experimental_protocol,
@@ -1177,6 +1418,21 @@ async def _raw_dispatch(name: str, args: dict[str, Any]) -> Any:
         "get_encode_regulatory": get_encode_regulatory,
         "search_metabolomics": search_metabolomics,
         "get_ucsc_splice_variants": get_ucsc_splice_variants,
+        # CRISPR Design Suite
+        "design_crispr_guides": design_crispr_guides,
+        "score_guide_efficiency": score_guide_efficiency,
+        "predict_off_target_sites": predict_off_target_sites,
+        "design_base_editor_guides": design_base_editor_guides,
+        "get_crispr_repair_outcomes": get_crispr_repair_outcomes,
+        # FDA Drug Safety Intelligence
+        "query_adverse_events": query_adverse_events,
+        "analyze_safety_signals": analyze_safety_signals,
+        "get_drug_label_warnings": get_drug_label_warnings,
+        "compare_drug_safety": compare_drug_safety,
+        # Variant Interpreter
+        "classify_variant": classify_variant,
+        "get_population_frequency": get_population_frequency,
+        "lookup_clinvar_variant": lookup_clinvar_variant,
     }
 
     if name not in DISPATCH:
