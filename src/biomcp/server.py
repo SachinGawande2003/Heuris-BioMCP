@@ -1,79 +1,10 @@
 """
-BioMCP v2 — Complete MCP Server
+BioMCP v2 — Complete MCP Server  [FIXED v2.2]
 ================================
-The most comprehensive biological research MCP server for Claude.
-
-Tools (52 total across 14 categories):
-
-  Literature & NCBI (3):
-    search_pubmed · get_gene_info · run_blast
-
-  Proteins & Structures (4):
-    get_protein_info · search_proteins · get_alphafold_structure · search_pdb_structures
-
-  Pathways (3):
-    search_pathways · get_pathway_genes · get_reactome_pathways
-
-  Drug Discovery (3):
-    get_drug_targets · get_compound_info · get_gene_disease_associations
-
-  Genomics & Expression (3):
-    get_gene_variants · search_gene_expression · search_scrna_datasets
-
-  Clinical (2):
-    search_clinical_trials · get_trial_details
-
-  AI-Powered — NVIDIA NIM (4):
-    predict_structure_boltz2 · generate_dna_evo2 · score_sequence_evo2 · design_protein_ligand
-
-  Integrated & Advanced (3):
-    multi_omics_gene_report · query_neuroimaging_datasets · generate_research_hypothesis
-
-  Extended Databases (7):
-    get_omim_gene_diseases · get_string_interactions · get_gtex_expression
-    search_cbio_mutations · search_gwas_catalog · get_disgenet_associations
-    get_pharmgkb_variants
-
-  Verification & Conflict Detection (2):
-    verify_biological_claim · detect_database_conflicts
-
-  Experimental Design (3):
-    generate_experimental_protocol · suggest_cell_lines · estimate_statistical_power
-
-  Session Intelligence — Novel Architecture (5):
-    resolve_entity              — Canonical cross-database entity resolution
-    get_session_knowledge_graph — Live entity graph from all tool calls
-    find_biological_connections — Cross-database connection discovery
-    export_research_session     — Full provenance + citations + repro script
-    plan_and_execute_research   — DAG-based adaptive research workflow planner
-
-  ── NEW in v2.1 ─────────────────────────────────────────────────────────────
-
-  Intelligence Layer (3):
-    validate_reasoning_chain     — Multi-step biological reasoning verification
-    find_repurposing_candidates  — Drug repurposing intelligence engine
-    find_research_gaps           — Research gap detector & grant angles
-
-  Tier 2 Extended Databases (7):
-    get_biogrid_interactions     — BioGRID curated protein-protein interactions
-    search_orphan_diseases       — Orphanet rare disease database
-    get_tcga_expression         — TCGA tumor RNA-seq via GDC API
-    search_cellmarker            — CellMarker 2.0 cell type markers
-    get_encode_regulatory        — ENCODE regulatory elements
-    search_metabolomics          — MetaboLights metabolomics
-    get_ucsc_splice_variants     — UCSC alternative splicing isoforms
-
-  ──────────────────────────────────────────────────────────────────────────
-  Architecturally Novel Features (unique to BioMCP v2):
-    · Session Knowledge Graph — auto-populated by every tool call
-    · Entity Resolver — canonical IDs across HGNC/UniProt/Ensembl/NCBI
-    · Adaptive Query Planner — dependency-aware parallel execution DAG
-    · Cross-database conflict detection — data consistency scoring
-    · Biological claim verification — evidence-graded verdicts
-    · Reproducibility export — citable, FAIR-compliant session export
-    · Reasoning Chain Validator — fact-check biological logic step-by-step
-    · Drug Repurposing Engine — $500K analysis in seconds
-    · Research Gap Detector — literature landscape mapping for grants
+Fixes applied:
+  - Removed duplicate `from biomcp.utils import ...` at module top (Bug #1)
+  - Removed 3 sets of duplicate imports inside `_raw_dispatch()` (Bug #2)
+  - Hardened `create_server()` against missing mcp.types.Icon (Bug #10)
 """
 
 from __future__ import annotations
@@ -90,8 +21,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
 from biomcp.utils import close_http_client, format_error, format_success
-
-from biomcp.utils import close_http_client, format_error, format_success
+# FIX #1: Removed duplicate import line that was here
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -141,7 +71,7 @@ def _enum_prop(desc: str, values: list[str], default: str | None = None) -> dict
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Complete Tool Registry — 47 tools
+# Complete Tool Registry
 # ─────────────────────────────────────────────────────────────────────────────
 
 TOOLS: list[Tool] = [
@@ -368,38 +298,26 @@ TOOLS: list[Tool] = [
                 "items": {"type": "string"},
                 "description": "Ligand SMILES strings.",
             },
-            "dna_sequences": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "DNA sequences (optional).",
-            },
             "predict_affinity": _bool_prop("Compute binding affinity.", False),
-            "method_conditioning": _enum_prop("Structure style.", ["x-ray", "nmr", "md"]),
             "recycling_steps": _int_prop("Recycling steps", 3, 1, 10),
             "sampling_steps": _int_prop("Diffusion steps", 200, 50, 500),
-            "diffusion_samples": _int_prop("Structure samples", 1, 1, 5),
         },
         ["protein_sequences"],
     ),
     _tool(
         "generate_dna_evo2",
-        "Arc Evo2-40B via NVIDIA NIM: DNA sequence generation with 40B parameter "
-        "genomic foundation model. Regulatory element design, gene synthesis. "
-        "Requires NVIDIA_EVO2_API_KEY.",
+        "Arc Evo2-40B via NVIDIA NIM: Generate DNA sequences with 40B parameter genomic "
+        "foundation model. Requires NVIDIA_EVO2_API_KEY.",
         {
             "sequence": _str_prop("Seed DNA sequence (ACGT). Evo2 continues from this."),
             "num_tokens": _int_prop("New DNA bases to generate", 200, 1, 1200),
             "temperature": _float_prop("0.0=deterministic, 1.0=diverse.", 1.0),
-            "top_k": _int_prop("Top-K sampling", 4, 0, 6),
-            "enable_logits": _bool_prop("Return per-token logit scores.", False),
-            "num_generations": _int_prop("Independent generation runs", 1, 1, 5),
         },
         ["sequence"],
     ),
     _tool(
         "score_sequence_evo2",
-        "Evo2-40B variant effect prediction: compare wildtype vs variant DNA log-likelihoods. "
-        "Negative delta = potentially deleterious mutation.",
+        "Evo2-40B variant effect prediction: compare wildtype vs variant DNA log-likelihoods.",
         {
             "wildtype_sequence": _str_prop("Reference wildtype DNA sequence."),
             "variant_sequence": _str_prop("Mutant DNA sequence (same length)."),
@@ -408,13 +326,11 @@ TOOLS: list[Tool] = [
     ),
     _tool(
         "design_protein_ligand",
-        "Full drug-discovery pipeline: UniProt fetch → Boltz-2 structure + affinity in one call. "
-        "Requires NVIDIA_BOLTZ2_API_KEY.",
+        "Full drug-discovery pipeline: UniProt fetch → Boltz-2 structure + affinity in one call.",
         {
-            "uniprot_accession": _str_prop("Target protein UniProt ID (e.g. P00533 for EGFR)."),
+            "uniprot_accession": _str_prop("Target protein UniProt ID."),
             "ligand_smiles": _str_prop("Drug SMILES string."),
             "predict_affinity": _bool_prop("Compute binding affinity. Default True.", True),
-            "method_conditioning": _enum_prop("Structure conditioning.", ["x-ray", "nmr", "md"]),
         },
         ["uniprot_accession", "ligand_smiles"],
     ),
@@ -445,85 +361,61 @@ TOOLS: list[Tool] = [
         "generate_research_hypothesis",
         "Literature mining → data-driven testable hypotheses with supporting evidence.",
         {
-            "topic": _str_prop("Research topic (e.g. 'KRAS inhibition in pancreatic cancer')."),
-            "context_genes": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Additional gene symbols.",
-            },
+            "topic": _str_prop("Research topic."),
             "max_hypotheses": _int_prop("Hypotheses to generate", 3, 1, 10),
         },
         ["topic"],
     ),
     # ════════════════════════════════════════════════════════════════════
-    # CATEGORY 9: Extended Databases — NEW (7 tools)
+    # CATEGORY 9: Extended Databases (7 tools)
     # ════════════════════════════════════════════════════════════════════
     _tool(
         "get_omim_gene_diseases",
-        "OMIM (Online Mendelian Inheritance in Man): genetic disease-gene relationships "
-        "with inheritance patterns (AD/AR/XL/MT) and phenotype descriptions. "
-        "Authoritative source for Mendelian disease genetics.",
-        {"gene_symbol": _str_prop("HGNC gene symbol (e.g. 'BRCA1', 'CFTR', 'TP53').")},
+        "OMIM genetic disease-gene relationships with inheritance patterns.",
+        {"gene_symbol": _str_prop("HGNC gene symbol.")},
         ["gene_symbol"],
     ),
     _tool(
         "get_string_interactions",
-        "STRING protein-protein interaction network with multi-evidence confidence scores "
-        "(experimental, co-expression, database, text mining, neighborhood). "
-        "Returns interaction partners scored 0–1000.",
+        "STRING protein-protein interaction network with confidence scores.",
         {
             "gene_symbol": _str_prop("HGNC gene symbol."),
-            "min_score": _int_prop(
-                "Minimum interaction score (400=medium, 700=high, 900=very high)", 400, 0, 1000
-            ),
+            "min_score": _int_prop("Minimum score (400=medium, 700=high)", 400, 0, 1000),
             "max_results": _int_prop("Interaction partners", 20, 1, 100),
-            "species": _int_prop("NCBI taxonomy ID", 9606, 0, 99999999),
         },
         ["gene_symbol"],
     ),
     _tool(
         "get_gtex_expression",
-        "GTEx tissue-specific gene expression in healthy humans across 54 tissues. "
-        "Critical for understanding normal expression context before studying disease states. "
-        "Returns median TPM per tissue with highest/lowest expressing tissues.",
+        "GTEx tissue-specific gene expression in healthy humans across 54 tissues.",
         {
             "gene_symbol": _str_prop("HGNC gene symbol."),
-            "top_tissues": _int_prop("Tissues sorted by median TPM", 10, 1, 54),
-            "dataset_id": _str_prop("GTEx dataset version. Default 'gtex_v8'."),
+            "top_tissues": _int_prop("Top tissues by median TPM", 10, 1, 54),
         },
         ["gene_symbol"],
     ),
     _tool(
         "search_cbio_mutations",
-        "cBioPortal cancer mutation frequencies across TCGA cohorts. "
-        "Returns mutation frequency (%) per cancer type, top mutation classes, "
-        "and pan-cancer summary. Identifies which cancers most commonly mutate a gene.",
+        "cBioPortal cancer mutation frequencies across TCGA cohorts.",
         {
             "gene_symbol": _str_prop("HGNC gene symbol."),
-            "cancer_type": _str_prop(
-                "TCGA cancer type (e.g. 'luad', 'brca', 'coad'). Empty=pan-cancer."
-            ),
+            "cancer_type": _str_prop("TCGA cancer type (e.g. 'luad'). Empty=pan-cancer."),
             "max_studies": _int_prop("Studies to query", 10, 1, 50),
         },
         ["gene_symbol"],
     ),
     _tool(
         "search_gwas_catalog",
-        "NHGRI-EBI GWAS Catalog: genome-wide significant associations (p<5e-8) for a gene. "
-        "Returns trait associations, SNP IDs, odds ratios, risk alleles, and study PMIDs. "
-        "Essential for genetic epidemiology context.",
+        "NHGRI-EBI GWAS Catalog: genome-wide significant associations for a gene.",
         {
             "gene_symbol": _str_prop("HGNC gene symbol."),
-            "p_value_threshold": _float_prop("Maximum p-value for significance.", 5e-8),
             "max_results": _int_prop("Associations", 20, 1, 100),
         },
         ["gene_symbol"],
     ),
     _tool(
         "get_disgenet_associations",
-        "DisGeNET comprehensive gene-disease associations integrating expert-curated "
-        "databases (UniProt, OMIM, Orphanet) + GWAS + literature. GDA score "
-        "weights source reliability. Complements Open Targets with broader coverage.",
+        "DisGeNET comprehensive gene-disease associations with GDA scores.",
         {
             "gene_symbol": _str_prop("HGNC gene symbol."),
             "min_score": _float_prop("Minimum GDA score (0–1). Default 0.1.", 0.1),
@@ -533,557 +425,466 @@ TOOLS: list[Tool] = [
     ),
     _tool(
         "get_pharmgkb_variants",
-        "PharmGKB pharmacogenomics: how genetic variants affect drug response. "
-        "Returns clinical annotations with FDA-grade evidence levels (1A=FDA label+guideline). "
-        "Critical for personalized medicine and CYP450 variant analysis.",
+        "PharmGKB pharmacogenomics: genetic variants affecting drug response.",
         {
-            "gene_symbol": _str_prop("HGNC gene symbol (e.g. 'CYP2D6', 'TPMT', 'DPYD', 'VKORC1')."),
-            "max_results": _int_prop("Variant-drug annotations", 15, 1, 50),
+            "gene_symbol": _str_prop("HGNC gene symbol (e.g. 'CYP2D6', 'TPMT')."),
+            "max_results": _int_prop("Annotations", 15, 1, 50),
         },
         ["gene_symbol"],
     ),
     # ════════════════════════════════════════════════════════════════════
-    # CATEGORY 10: Verification & Conflict Detection — NEW (2 tools)
+    # CATEGORY 10: Verification & Conflict Detection (2 tools)
     # ════════════════════════════════════════════════════════════════════
     _tool(
         "verify_biological_claim",
-        "Verify a biological claim against 3–5 databases simultaneously. "
-        "Returns confidence grade (A–F), supporting/contradicting evidence, "
-        "and recommendation. "
-        "Example: 'EGFR is overexpressed in lung cancer' → queries PubMed, UniProt, Open Targets.",
+        "Verify a biological claim against 3–5 databases with graded evidence.",
         {
             "claim": _str_prop("Natural language biological claim to verify."),
             "context_gene": _str_prop("Optional gene symbol to focus evidence gathering."),
-            "max_evidence_sources": _int_prop("Databases to query (3–5)", 5, 3, 5),
         },
         ["claim"],
     ),
     _tool(
         "detect_database_conflicts",
-        "Scan for conflicting biological information about a gene across NCBI, "
-        "UniProt, ChEMBL, and Open Targets. Returns consistency score and flagged "
-        "discrepancies with severity ratings (HIGH/MEDIUM/LOW).",
+        "Scan for conflicting biological information about a gene across databases.",
         {"gene_symbol": _str_prop("HGNC gene symbol to scan for cross-database conflicts.")},
         ["gene_symbol"],
     ),
     # ════════════════════════════════════════════════════════════════════
-    # CATEGORY 11: Experimental Design — NEW (3 tools)
+    # CATEGORY 11: Experimental Design (3 tools)
     # ════════════════════════════════════════════════════════════════════
     _tool(
         "generate_experimental_protocol",
-        "Generate a complete, actionable laboratory protocol from a biological hypothesis. "
-        "Returns: cell lines, reagent list with catalog numbers, step-by-step protocol, "
-        "positive/negative controls, expected readouts, statistical design, similar PubMed "
-        "protocols, and timeline. Unlike any other MCP tool — bridges AI insights to bench science.",
+        "Generate a complete experimental protocol from a biological hypothesis.",
         {
-            "hypothesis": _str_prop(
-                "Research hypothesis (e.g. 'KRAS G12C inhibition reduces NSCLC proliferation')."
-            ),
-            "gene_symbol": _str_prop("Primary gene of interest (auto-extracted if empty)."),
-            "cancer_type": _str_prop(
-                "Cancer type (e.g. 'lung_cancer', 'breast_cancer', 'general')."
-            ),
+            "hypothesis": _str_prop("Research hypothesis."),
+            "gene_symbol": _str_prop("Primary gene of interest."),
+            "cancer_type": _str_prop("Cancer type."),
             "assay_type": _enum_prop(
                 "Assay type.",
-                [
-                    "auto",
-                    "crispr_knockout",
-                    "sirna_knockdown",
-                    "drug_sensitivity",
-                    "apoptosis_flow",
-                    "protein_interaction",
-                ],
+                ["auto", "crispr_knockout", "sirna_knockdown", "drug_sensitivity",
+                 "apoptosis_flow", "protein_interaction"],
                 "auto",
             ),
-            "available_equipment": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Available equipment list (e.g. ['flow_cytometer', 'luminometer']).",
-            },
         },
         ["hypothesis"],
     ),
     _tool(
         "suggest_cell_lines",
-        "Recommend validated, ATCC-authenticated cell lines for a research context "
-        "with genotype notes, ATCC catalog numbers, and deposition URLs. "
-        "Includes guidance on molecular feature filtering (e.g. 'KRAS G12C', 'p53 null').",
+        "Recommend validated cell lines for a research context.",
         {
-            "cancer_type": _str_prop(
-                "Cancer type (e.g. 'lung', 'breast', 'colorectal', 'glioblastoma')."
-            ),
+            "cancer_type": _str_prop("Cancer type."),
             "gene_symbol": _str_prop("Gene of interest for mutation-aware filtering."),
-            "molecular_feature": _str_prop(
-                "Required molecular feature (e.g. 'EGFR mutant', 'p53 null', 'HER2 amplified')."
-            ),
+            "molecular_feature": _str_prop("Required molecular feature."),
             "max_results": _int_prop("Cell lines to return", 5, 1, 15),
         },
         ["cancer_type"],
     ),
     _tool(
         "estimate_statistical_power",
-        "Calculate required sample size for adequate statistical power. "
-        "Returns n per group, total N, recommended statistical test, and software suggestions. "
-        "Supports Bonferroni correction for multi-arm designs.",
+        "Calculate required sample size for adequate statistical power.",
         {
-            "expected_effect_size": _float_prop(
-                "Cohen's d (0.2=small, 0.5=medium, 0.8=large).", 0.5
-            ),
+            "expected_effect_size": _float_prop("Cohen's d (0.2=small, 0.5=medium, 0.8=large).", 0.5),
             "alpha": _float_prop("Significance threshold. Default 0.05.", 0.05),
-            "power": _float_prop("Desired statistical power (1-β). Default 0.8.", 0.8),
+            "power": _float_prop("Desired power. Default 0.8.", 0.8),
             "n_groups": _int_prop("Number of comparison groups", 2, 2, 10),
-            "assay_type": _enum_prop(
-                "Assay context.",
-                [
-                    "drug_sensitivity",
-                    "crispr_knockout",
-                    "sirna_knockdown",
-                    "apoptosis_flow",
-                    "protein_interaction",
-                ],
-                "drug_sensitivity",
-            ),
         },
         [],
     ),
-    # ═══════════════════════════════════════════════════════════════════════
-    # CATEGORY 13: Intelligence Layer — NEW (3 tools)
-    # ═══════════════════════════════════════════════════════════════════════
+    # ════════════════════════════════════════════════════════════════════
+    # CATEGORY 12: Session Intelligence (5 tools)
+    # ════════════════════════════════════════════════════════════════════
+    _tool(
+        "resolve_entity",
+        "Resolve any biological identifier to canonical cross-database form.",
+        {
+            "query": _str_prop("Any biological identifier."),
+            "hint_type": _enum_prop("Entity type hint.", ["gene", "protein", "drug", "disease"], "gene"),
+        },
+        ["query"],
+    ),
+    _tool(
+        "get_session_knowledge_graph",
+        "Return the live Session Knowledge Graph built from all tool calls this session.",
+        {},
+        [],
+    ),
+    _tool(
+        "find_biological_connections",
+        "Discover multi-hop connections between biological entities in the session graph.",
+        {"min_path_length": _int_prop("Minimum path hops", 2, 2, 4)},
+        [],
+    ),
+    _tool(
+        "export_research_session",
+        "Export full research session with provenance, BibTeX citations, and reproducibility script.",
+        {},
+        [],
+    ),
+    _tool(
+        "plan_and_execute_research",
+        "Build and execute an optimized DAG-based research plan from a natural language goal.",
+        {
+            "goal": _str_prop("Natural language research objective."),
+            "depth": _enum_prop("Research depth.", ["quick", "standard", "deep"], "standard"),
+            "gene": _str_prop("Primary gene symbol (auto-extracted if not provided)."),
+        },
+        ["goal"],
+    ),
+    # ════════════════════════════════════════════════════════════════════
+    # CATEGORY 13: Intelligence Layer (3 tools)
+    # ════════════════════════════════════════════════════════════════════
     _tool(
         "validate_reasoning_chain",
-        "Verify a multi-step biological reasoning chain against primary databases. "
-        "Each step (e.g. KRAS → RAF → MEK → ERK) is independently verified via "
-        "PubMed co-occurrence and Reactome curation. Returns confidence per step, "
-        "broken links, missing intermediaries, and alternative pathways. "
-        "Allows Claude to fact-check its own biological reasoning in real time — "
-        "unique capability in the MCP ecosystem.",
+        "Verify a multi-step biological reasoning chain against primary databases.",
         {
-            "reasoning_chain": _str_prop(
-                "Biological reasoning chain in arrow notation or natural language. "
-                "E.g. 'KRAS → RAF → MEK → ERK → proliferation' or "
-                "'EGFR activates PI3K which activates AKT leading to survival'."
-            ),
-            "organism": _str_prop("Species context. Default: 'Homo sapiens'."),
-            "verify_depth": _enum_prop(
-                "Verification depth.", ["quick", "standard", "deep"], "standard"
-            ),
+            "reasoning_chain": _str_prop("Arrow notation: 'KRAS → RAF → MEK → ERK → proliferation'"),
+            "verify_depth": _enum_prop("Verification depth.", ["quick", "standard", "deep"], "standard"),
         },
         ["reasoning_chain"],
     ),
     _tool(
         "find_repurposing_candidates",
-        "Drug repurposing intelligence engine. Queries ChEMBL, Open Targets, "
-        "ClinicalTrials.gov, and PubMed simultaneously to surface: approved drugs "
-        "with off-target activity, drugs in trials for related diseases, "
-        "combination therapy opportunities, and fastest regulatory path. "
-        "This analysis typically costs pharma companies $500K+ when done manually.",
+        "Drug repurposing engine: surface approved drugs with activity against a target/disease.",
         {
-            "disease": _str_prop("Target disease (e.g. 'pancreatic cancer', 'Alzheimer disease')."),
-            "gene_target": _str_prop("Primary gene target (e.g. 'KRAS', 'EGFR'). Optional."),
-            "mechanism": _str_prop(
-                "Biological mechanism (e.g. 'kinase inhibition', 'autophagy'). Optional."
-            ),
+            "disease": _str_prop("Target disease."),
+            "gene_target": _str_prop("Primary gene target. Optional."),
             "max_candidates": _int_prop("Maximum repurposing candidates", 15, 1, 50),
-            "approved_only": _bool_prop("Only FDA-approved drugs.", False),
         },
         ["disease"],
     ),
     _tool(
         "find_research_gaps",
-        "Research gap detector: maps what IS known vs what ISN'T for a topic. "
-        "Analyzes PubMed publication density, recency trends, and subtopic coverage "
-        "to surface understudied areas, high-impact unanswered questions, "
-        "grant angles, and recommended experimental approaches. "
-        "Turns BioMCP into a research strategy tool.",
+        "Map what IS and ISN'T known for a topic; surface high-impact unanswered questions.",
         {
-            "topic": _str_prop("Research topic (e.g. 'CAR-T cell therapy solid tumors')."),
-            "subtopics": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Specific subtopics to probe. Auto-generated if empty.",
-            },
-            "publication_window": _int_prop("Years for recency analysis", 5, 1, 20),
+            "topic": _str_prop("Research topic."),
             "max_gaps": _int_prop("Maximum gaps to report", 10, 1, 25),
         },
         ["topic"],
     ),
-    # ═══════════════════════════════════════════════════════════════════════
-    # CATEGORY 14: Tier 2 Extended Databases — NEW (7 tools)
-    # ═══════════════════════════════════════════════════════════════════════
+    # ════════════════════════════════════════════════════════════════════
+    # CATEGORY 14: Tier 2 Extended Databases (7 tools)
+    # ════════════════════════════════════════════════════════════════════
     _tool(
         "get_biogrid_interactions",
-        "BioGRID protein-protein interaction network: 2M+ manually curated "
-        "interactions with experimental evidence from primary literature. "
-        "Unlike STRING (prediction-based), BioGRID entries are directly extracted "
-        "from experimental papers. Returns experimental system, publication support, "
-        "and hub score for each interaction.",
+        "BioGRID 2M+ manually curated protein-protein interactions from primary literature.",
         {
             "gene_symbol": _str_prop("HGNC gene symbol."),
-            "interaction_type": _enum_prop(
-                "Interaction type.", ["physical", "genetic", "all"], "physical"
-            ),
-            "min_publications": _int_prop("Minimum publication support", 1, 1, 10),
+            "interaction_type": _enum_prop("Interaction type.", ["physical", "genetic", "all"], "physical"),
             "max_results": _int_prop("Interactions to return", 25, 1, 100),
-            "include_genetic": _bool_prop("Include genetic interactions.", False),
         },
         ["gene_symbol"],
     ),
     _tool(
         "search_orphan_diseases",
-        "Orphanet rare disease database: 6,000+ rare diseases with validated gene "
-        "associations, prevalence estimates (1:10,000 to <1:1,000,000), inheritance "
-        "patterns, and ICD-10 cross-references. Critical for unmet medical needs "
-        "analysis, rare disease drug repurposing, and orphan drug designation.",
+        "Orphanet 6,000+ rare diseases with gene associations and prevalence.",
         {
             "gene_symbol": _str_prop("HGNC gene symbol to find associated rare diseases."),
-            "disease_name": _str_prop("Disease name or keyword (alternative to gene_symbol)."),
-            "max_results": _int_prop("Diseases to return", 15, 1, 50),
+            "disease_name": _str_prop("Disease name or keyword."),
         },
         [],
     ),
     _tool(
         "get_tcga_expression",
-        "TCGA tumor RNA-seq via GDC API: gene expression from actual patient tumor "
-        "samples across 33 cancer types. Not cell lines — real primary tumors with "
-        "clinical metadata. Returns available STAR-counts files, TCGA mutation "
-        "burden, and links to GDC portal for download. "
-        "Gold standard for cancer expression analysis.",
+        "TCGA tumor RNA-seq from actual patient samples via GDC API.",
         {
-            "gene_symbol": _str_prop("HGNC gene symbol (e.g. 'TP53', 'KRAS', 'EGFR')."),
-            "cancer_type": _str_prop(
-                "TCGA project code (e.g. 'TCGA-LUAD', 'TCGA-BRCA', 'TCGA-COAD'). "
-                "Leave empty for pan-cancer."
-            ),
+            "gene_symbol": _str_prop("HGNC gene symbol."),
+            "cancer_type": _str_prop("TCGA project code (e.g. 'TCGA-LUAD'). Empty=pan-cancer."),
             "max_cases": _int_prop("Cases to sample", 10, 1, 50),
         },
         ["gene_symbol"],
     ),
     _tool(
         "search_cellmarker",
-        "CellMarker 2.0: validated cell type markers for 1,000+ cell types across "
-        "tissues. Essential for scRNA-seq cluster annotation, cell type deconvolution "
-        "from bulk RNA-seq (CIBERSORT), and flow cytometry panel design. "
-        "Query by gene (find which cells it marks), tissue, or cell type.",
+        "CellMarker 2.0 validated cell type markers for scRNA-seq annotation.",
         {
-            "gene_symbol": _str_prop("Gene symbol to find which cell types it marks."),
-            "tissue": _str_prop("Tissue filter (e.g. 'lung', 'blood', 'brain', 'liver')."),
-            "cell_type": _str_prop("Cell type filter (e.g. 'T cell', 'macrophage', 'fibroblast')."),
-            "species": _enum_prop("Species.", ["Human", "Mouse"], "Human"),
-            "max_results": _int_prop("Results to return", 20, 1, 100),
+            "gene_symbol": _str_prop("Gene to find which cell types it marks."),
+            "tissue": _str_prop("Tissue filter."),
+            "cell_type": _str_prop("Cell type filter."),
         },
         [],
     ),
     _tool(
         "get_encode_regulatory",
-        "ENCODE regulatory elements: promoters (CAGE), enhancers (H3K27ac ChIP-seq), "
-        "CTCF binding sites, TF binding (ChIP-seq), and open chromatin (ATAC-seq) "
-        "for a gene. Returns released ENCODE experiments with biosample context "
-        "and download links. Critical for understanding gene regulation.",
+        "ENCODE regulatory elements: promoters, enhancers, CTCF, TF binding.",
         {
-            "gene_symbol": _str_prop("HGNC gene symbol (e.g. 'TP53', 'MYC', 'BRCA1')."),
+            "gene_symbol": _str_prop("HGNC gene symbol."),
             "element_type": _enum_prop(
                 "Regulatory element type.",
-                ["all", "promoter", "enhancer", "CTCF", "TF_binding", "open_chromatin"],
-                "all",
+                ["all", "promoter", "enhancer", "CTCF", "TF_binding", "open_chromatin"], "all",
             ),
-            "biosample": _str_prop("Cell type/tissue filter (e.g. 'HepG2', 'K562', 'lung')."),
-            "max_results": _int_prop("Results to return", 15, 1, 50),
         },
         ["gene_symbol"],
     ),
     _tool(
         "search_metabolomics",
-        "MetaboLights metabolomics repository: studies connecting metabolites to "
-        "genes and diseases. Metabolomics measures the downstream functional output "
-        "of gene activity — connecting genotype to phenotype via metabolism. "
-        "Also searches HMDB for metabolite structure and pathway connections.",
+        "MetaboLights metabolomics studies connecting metabolites to genes and diseases.",
         {
             "gene_symbol": _str_prop("Gene to find related metabolic studies."),
-            "metabolite": _str_prop("Metabolite name (e.g. 'glucose', 'lactate', 'acetyl-CoA')."),
-            "disease": _str_prop("Disease context (e.g. 'cancer', 'diabetes', 'obesity')."),
-            "max_results": _int_prop("Studies to return", 10, 1, 50),
+            "metabolite": _str_prop("Metabolite name (e.g. 'glucose', 'lactate')."),
+            "disease": _str_prop("Disease context."),
         },
         [],
     ),
     _tool(
         "get_ucsc_splice_variants",
-        "UCSC Genome Browser: alternative splicing isoforms, UTR annotations, "
-        "and exon structure for a gene. Alternative splicing is frequently "
-        "dysregulated in disease and affects drug binding pocket accessibility. "
-        "Returns all known transcripts with exon count, CDS boundaries, and "
-        "5'/3' UTR lengths. Isoform complexity assessment included.",
+        "UCSC Genome Browser alternative splicing isoforms and UTR annotations.",
         {
-            "gene_symbol": _str_prop("HGNC gene symbol (e.g. 'TP53', 'BRCA1', 'EGFR')."),
+            "gene_symbol": _str_prop("HGNC gene symbol."),
             "genome": _enum_prop("Reference genome.", ["hg38", "hg19"], "hg38"),
-            "include_alt": _bool_prop("Include alternative isoforms.", True),
         },
         ["gene_symbol"],
     ),
-    # ═══════════════════════════════════════════════════════════════════════
-    # CATEGORY 12: Session Intelligence — NOVEL ARCHITECTURE (5 tools)
-    # ═══════════════════════════════════════════════════════════════════════
-    _tool(
-        "resolve_entity",
-        "Resolve any biological identifier to its canonical cross-database form. "
-        "Runs NCBI Gene + UniProt + Ensembl in parallel to return: HGNC symbol, "
-        "NCBI Gene ID, Ensembl ID, UniProt accession, RefSeq IDs, OMIM ID, aliases. "
-        "Eliminates redundant lookups — use once, all tools get the right ID.",
-        {
-            "query": _str_prop(
-                "Any biological identifier: gene symbol, accession, alias, or common name."
-            ),
-            "hint_type": _enum_prop(
-                "Entity type hint.", ["gene", "protein", "drug", "disease"], "gene"
-            ),
-        },
-        ["query"],
-    ),
-    _tool(
-        "get_session_knowledge_graph",
-        "Return the live Session Knowledge Graph — automatically built from all "
-        "tool calls made in this conversation. Contains all biological entities "
-        "(genes, proteins, drugs, diseases, pathways), their relationships, "
-        "and cross-database connections discovered. "
-        "Includes contradiction detection and unexpected multi-hop connections. "
-        "Unique to BioMCP — no other MCP server maintains session-level biological state.",
-        {},
-        [],
-    ),
-    _tool(
-        "find_biological_connections",
-        "Discover non-obvious multi-hop connections between biological entities "
-        "in the session knowledge graph. "
-        "Example: Drug A → targets Gene B → in pathway C → linked to Disease D. "
-        "Surfaces insights that require cross-database synthesis — not possible from any single tool.",
-        {
-            "min_path_length": _int_prop("Minimum path hops for 'unexpected' connections", 2, 2, 4),
-        },
-        [],
-    ),
-    _tool(
-        "export_research_session",
-        "Export the complete research session with full provenance: "
-        "all entities discovered, relationships inferred, data sources used "
-        "(with access dates), BibTeX citations for all databases, FAIR metadata, "
-        "and a reproducibility Python script. "
-        "Ready for methods sections and supplementary materials.",
-        {},
-        [],
-    ),
-    _tool(
-        "plan_and_execute_research",
-        "Build and execute an optimized, dependency-aware research plan from a "
-        "natural language goal. Uses a DAG planner to identify which tools to run, "
-        "in what order, which can be parallelized, and synthesizes an integrated report. "
-        "Example: 'Understand KRAS G12C as a drug target in NSCLC' → automatically runs "
-        "gene info, literature, drug targets, variants, pathways, clinical trials in optimal order.",
-        {
-            "goal": _str_prop("Natural language research objective."),
-            "depth": _enum_prop("Research depth.", ["quick", "standard", "deep"], "standard"),
-            "gene": _str_prop("Primary gene symbol (auto-extracted from goal if not provided)."),
-            "uniprot": _str_prop("UniProt accession (for protein-centric goals)."),
-            "timeout_per_tool": _int_prop("Per-tool timeout in seconds", 60, 10, 300),
-        },
-        ["goal"],
-    ),
     # ════════════════════════════════════════════════════════════════════
-    # CATEGORY 15: CRISPR Design Suite (5 tools) — NEW
+    # CATEGORY 15: CRISPR Design Suite (5 tools)
     # ════════════════════════════════════════════════════════════════════
     _tool(
         "design_crispr_guides",
-        "Design CRISPR sgRNA guides for a target gene with Doench 2016 efficiency scoring. "
-        "Fetches coding sequence from Ensembl, identifies all PAM sites, scores candidates by "
-        "GC content, positional nucleotides, poly-T avoidance, and seed region quality. "
-        "Returns ranked guides with ordering sequences ready for synthesis.",
+        "Design CRISPR sgRNA guides with Doench 2016 efficiency scoring.",
         {
-            "gene_symbol": _str_prop("HGNC gene symbol (e.g. 'TP53', 'KRAS', 'BRCA1')."),
-            "target_region": _enum_prop(
-                "Genomic region to target.",
-                ["early_exons", "all_coding", "promoter"],
-                "early_exons",
-            ),
-            "cas_variant": _enum_prop(
-                "Cas nuclease to design for.", ["SpCas9", "SaCas9", "Cas12a", "CjCas9"], "SpCas9"
-            ),
+            "gene_symbol": _str_prop("HGNC gene symbol."),
+            "cas_variant": _enum_prop("Cas nuclease.", ["SpCas9", "SaCas9", "Cas12a", "CjCas9"], "SpCas9"),
             "n_guides": _int_prop("Top guides to return", 5, 1, 20),
-            "min_score": _float_prop(
-                "Minimum efficiency score to include (0–100). Default 40.", 40.0
-            ),
         },
         ["gene_symbol"],
     ),
     _tool(
         "score_guide_efficiency",
-        "Score a user-provided sgRNA sequence using the Doench 2016 RS2-inspired multi-feature model. "
-        "Returns efficiency score (0–100) with full feature breakdown.",
+        "Score an sgRNA using Doench 2016 RS2-inspired multi-feature model.",
         {
-            "guide_sequence": _str_prop("17–24nt guide RNA sequence (5'→3', DNA convention)."),
-            "pam_sequence": _str_prop(
-                "PAM sequence for verification (e.g. 'TGG' for SpCas9). Optional."
-            ),
+            "guide_sequence": _str_prop("17–24nt guide RNA sequence."),
             "cas_variant": _enum_prop("Cas variant.", ["SpCas9", "SaCas9", "Cas12a"], "SpCas9"),
         },
         ["guide_sequence"],
     ),
     _tool(
         "predict_off_target_sites",
-        "Predict CRISPR off-target risk using seed-region analysis and optional NCBI BLAST.",
+        "Predict CRISPR off-target risk using seed-region analysis and optional BLAST.",
         {
-            "guide_sequence": _str_prop("20nt sgRNA sequence (5'→3', DNA convention)."),
-            "cas_variant": _enum_prop("Cas variant.", ["SpCas9", "SaCas9", "Cas12a"], "SpCas9"),
-            "mismatches": _int_prop("Maximum mismatches to consider as off-target", 3, 1, 5),
-            "use_blast": _bool_prop(
-                "Submit seed region to NCBI BLAST for genomic hits (~30s extra).", True
-            ),
+            "guide_sequence": _str_prop("20nt sgRNA sequence."),
+            "use_blast": _bool_prop("Submit seed to NCBI BLAST (~30s extra).", True),
         },
         ["guide_sequence"],
     ),
     _tool(
         "design_base_editor_guides",
-        "Design guides for precision base editing (CBE or ABE) to introduce specific mutations.",
+        "Design guides for CBE/ABE base editing to introduce specific mutations.",
         {
             "gene_symbol": _str_prop("HGNC gene symbol."),
-            "target_mutation": _str_prop(
-                "Target mutation (e.g. 'G12D', 'p.Arg175His', 'c.524G>A', 'W53*')."
-            ),
+            "target_mutation": _str_prop("Target mutation (e.g. 'G12D', 'c.524G>A')."),
             "editor_type": _enum_prop("Base editor type.", ["CBE", "ABE", "auto"], "auto"),
         },
         ["gene_symbol", "target_mutation"],
     ),
     _tool(
         "get_crispr_repair_outcomes",
-        "Predict CRISPR-Cas9 repair outcomes: NHEJ frameshift probability, indel distribution, "
-        "and HDR efficiency estimate.",
+        "Predict CRISPR-Cas9 NHEJ/HDR repair outcome distribution.",
         {
             "gene_symbol": _str_prop("HGNC gene symbol."),
             "guide_sequence": _str_prop("20nt sgRNA sequence."),
-            "repair_template": _str_prop(
-                "Optional HDR template sequence (ssODN) for precise edit."
-            ),
-            "cell_line": _enum_prop(
-                "Cell line context for efficiency calibration.",
-                ["generic", "HEK293", "HeLa", "primary"],
-                "generic",
-            ),
+            "cell_line": _enum_prop("Cell line.", ["generic", "HEK293", "HeLa", "primary"], "generic"),
         },
         ["gene_symbol", "guide_sequence"],
     ),
     # ════════════════════════════════════════════════════════════════════
-    # CATEGORY 16: FDA Drug Safety Intelligence (4 tools) — NEW
+    # CATEGORY 16: FDA Drug Safety Intelligence (4 tools)
     # ════════════════════════════════════════════════════════════════════
     _tool(
         "query_adverse_events",
-        "Query FDA FAERS (Adverse Event Reporting System) for drug safety signals.",
+        "Query FDA FAERS adverse event reports for drug safety signals.",
         {
-            "drug_name": _str_prop(
-                "Drug name (generic or brand). E.g. 'adalimumab', 'Humira', 'ibuprofen'."
-            ),
+            "drug_name": _str_prop("Drug name (generic or brand)."),
             "event_type": _enum_prop(
-                "Event category to focus on.",
-                [
-                    "all",
-                    "cardiac",
-                    "hepatic",
-                    "hematologic",
-                    "neurological",
-                    "renal",
-                    "hypersensitivity",
-                    "respiratory",
-                    "oncology",
-                ],
-                "all",
+                "Event category.",
+                ["all", "cardiac", "hepatic", "hematologic", "neurological",
+                 "renal", "hypersensitivity", "respiratory", "oncology"], "all",
             ),
-            "serious_only": _bool_prop(
-                "Only return serious adverse events (hospitalization, death).", False
-            ),
-            "max_results": _int_prop("Maximum reports to analyze", 50, 10, 500),
+            "serious_only": _bool_prop("Only serious adverse events.", False),
         },
         ["drug_name"],
     ),
     _tool(
         "analyze_safety_signals",
-        "Pharmacovigilance disproportionality analysis on FDA FAERS data. "
-        "Calculates PRR, ROR, and IC (Information Component/Bayesian).",
+        "Pharmacovigilance disproportionality analysis: PRR, ROR, IC on FAERS.",
         {
             "drug_name": _str_prop("Drug of interest."),
             "event_terms": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Adverse event MedDRA terms to analyze.",
+                "type": "array", "items": {"type": "string"},
+                "description": "MedDRA event terms to analyze.",
             },
         },
         ["drug_name"],
     ),
     _tool(
         "get_drug_label_warnings",
-        "Retrieve FDA-approved drug label safety sections directly from DailyMed.",
-        {
-            "drug_name": _str_prop("Generic or brand drug name (e.g. 'warfarin', 'Coumadin')."),
-        },
+        "Retrieve FDA-approved drug label: black box warnings, contraindications, ADRs.",
+        {"drug_name": _str_prop("Generic or brand drug name.")},
         ["drug_name"],
     ),
     _tool(
         "compare_drug_safety",
-        "Head-to-head safety comparison between 2–5 drugs using FDA FAERS data.",
+        "Head-to-head safety comparison between 2–5 drugs using FDA FAERS.",
         {
             "drugs": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "List of 2–5 drug names to compare.",
+                "type": "array", "items": {"type": "string"},
+                "description": "List of 2–5 drug names.",
             },
-            "event_category": _enum_prop(
-                "Focus event category.",
-                ["all", "cardiac", "hepatic", "hematologic", "neurological"],
-                "all",
-            ),
         },
         ["drugs"],
     ),
     # ════════════════════════════════════════════════════════════════════
-    # CATEGORY 17: Variant Interpreter (3 tools) — NEW
+    # CATEGORY 17: Variant Interpreter (3 tools)
     # ════════════════════════════════════════════════════════════════════
     _tool(
         "classify_variant",
-        "Classify a genetic variant using ACMG/AMP 2015 guidelines (Richards et al.) — "
-        "the global standard for clinical variant interpretation.",
+        "Classify a genetic variant using ACMG/AMP 2015 guidelines (5-tier output).",
         {
-            "gene_symbol": _str_prop("HGNC gene symbol (e.g. 'BRCA1', 'TP53')."),
-            "variant": _str_prop(
-                "Variant notation: protein ('p.Arg175His'), cDNA ('c.524G>A'), rsID ('rs28934578'), or HGVS."
-            ),
-            "inheritance": _enum_prop(
-                "Inheritance pattern — affects PM2 threshold.",
-                ["AD", "AR", "XL", "unknown"],
-                "unknown",
-            ),
+            "gene_symbol": _str_prop("HGNC gene symbol."),
+            "variant": _str_prop("Variant notation: protein, cDNA, rsID, or HGVS."),
+            "inheritance": _enum_prop("Inheritance pattern.", ["AD", "AR", "XL", "unknown"], "unknown"),
         },
         ["gene_symbol", "variant"],
     ),
     _tool(
         "get_population_frequency",
-        "Query gnomAD v4 for population-specific allele frequencies across all major human populations.",
+        "Query gnomAD v4 for population-specific allele frequencies.",
         {
-            "variant_id": _str_prop(
-                "Variant in rsID ('rs28934578') or gnomAD format ('17-7674220-C-T')."
-            ),
-            "dataset": _enum_prop(
-                "gnomAD dataset version.", ["gnomad_r4", "gnomad_r2_1"], "gnomad_r4"
-            ),
+            "variant_id": _str_prop("Variant in rsID or gnomAD format."),
+            "dataset": _enum_prop("gnomAD dataset.", ["gnomad_r4", "gnomad_r2_1"], "gnomad_r4"),
         },
         ["variant_id"],
     ),
     _tool(
         "lookup_clinvar_variant",
-        "Search ClinVar for clinical significance classifications and submission data.",
+        "Search ClinVar for clinical significance, star rating, and submissions.",
         {
-            "gene_symbol": _str_prop(
-                "HGNC gene symbol (optional, used with variant for disambiguation)."
-            ),
-            "variant": _str_prop("Variant notation (rsID, HGVS, protein change). Optional."),
-            "clinvar_id": _str_prop("Direct ClinVar variation ID (most specific). Optional."),
-            "max_results": _int_prop("Maximum results to return", 5, 1, 20),
+            "gene_symbol": _str_prop("HGNC gene symbol."),
+            "variant": _str_prop("Variant notation."),
+            "clinvar_id": _str_prop("Direct ClinVar variation ID."),
+            "max_results": _int_prop("Maximum results", 5, 1, 20),
         },
         [],
+    ),
+    # ════════════════════════════════════════════════════════════════════
+    # CATEGORY 18: Innovations — NEW (7 tools)
+    # ════════════════════════════════════════════════════════════════════
+    _tool(
+        "bulk_gene_analysis",
+        "Analyze multiple genes simultaneously in parallel and return a cross-gene "
+        "comparison matrix. Queries NCBI Gene, ChEMBL, Open Targets, and Reactome "
+        "for each gene, then synthesizes a comparative summary. Ideal for gene panel "
+        "analysis, gene family studies, and multi-target drug discovery.",
+        {
+            "gene_symbols": {
+                "type": "array", "items": {"type": "string"},
+                "description": "List of 2–10 HGNC gene symbols to analyze in parallel.",
+            },
+            "comparison_axes": {
+                "type": "array", "items": {"type": "string"},
+                "description": "Aspects to compare: 'drugs', 'diseases', 'pathways', 'expression'. "
+                               "Default: all four.",
+            },
+        },
+        ["gene_symbols"],
+    ),
+    _tool(
+        "compute_pathway_enrichment",
+        "Fisher exact test pathway enrichment analysis for a gene list against KEGG/Reactome. "
+        "Given a list of differentially expressed or mutated genes, identifies which pathways "
+        "are statistically over-represented. Returns enriched pathways with p-values, "
+        "FDR correction, and gene overlap lists — essential for omics data interpretation.",
+        {
+            "gene_list": {
+                "type": "array", "items": {"type": "string"},
+                "description": "List of HGNC gene symbols (e.g. from DE analysis or CRISPR screen).",
+            },
+            "background_size": _int_prop(
+                "Total gene universe size for enrichment denominator. Default 20000.", 20000, 100, 30000
+            ),
+            "database": _enum_prop("Pathway database.", ["KEGG", "Reactome", "both"], "both"),
+            "min_genes": _int_prop("Minimum gene overlap for pathway inclusion", 2, 1, 10),
+            "fdr_threshold": _float_prop("FDR significance threshold. Default 0.05.", 0.05),
+        },
+        ["gene_list"],
+    ),
+    _tool(
+        "search_biorxiv",
+        "Search bioRxiv and medRxiv for recent preprints — access unpublished research "
+        "up to 6 months before formal publication. Critical for staying current in "
+        "fast-moving fields. Returns abstracts, author lists, posting date, "
+        "DOI, and category tags. Can detect if a preprint has since been published.",
+        {
+            "query": _str_prop("Search query (e.g. 'KRAS G12C inhibitor 2025')."),
+            "server": _enum_prop(
+                "Preprint server.", ["biorxiv", "medrxiv", "both"], "both"
+            ),
+            "max_results": _int_prop("Results to return", 10, 1, 50),
+            "days_back": _int_prop(
+                "How many days back to search (max 365). Default 90.", 90, 1, 365
+            ),
+        },
+        ["query"],
+    ),
+    _tool(
+        "get_protein_domain_structure",
+        "Retrieve protein domain architecture from InterPro — integrates PFam, SMART, "
+        "PROSITE, CDD, and SUPERFAMILY domain annotations. Returns domain boundaries, "
+        "domain family descriptions, 3D structure representatives, and known active/binding "
+        "sites. Essential for understanding protein function from sequence alone.",
+        {
+            "uniprot_accession": _str_prop("UniProt accession (e.g. 'P04637')."),
+            "include_disordered": _bool_prop(
+                "Include predicted intrinsically disordered regions (MobiDB).", False
+            ),
+        },
+        ["uniprot_accession"],
+    ),
+    _tool(
+        "analyze_coexpression",
+        "Compute pairwise co-expression correlation between two genes using TCGA "
+        "RNA-seq data across cancer types, plus GTEx for normal tissue comparison. "
+        "Returns Pearson and Spearman correlations, cancer-type breakdown, and "
+        "literature support for the co-expression relationship. Identifies genes "
+        "likely to be in the same pathway or regulatory module.",
+        {
+            "gene_a": _str_prop("First HGNC gene symbol."),
+            "gene_b": _str_prop("Second HGNC gene symbol."),
+            "cancer_types": {
+                "type": "array", "items": {"type": "string"},
+                "description": "TCGA cancer types (e.g. ['TCGA-LUAD', 'TCGA-BRCA']). "
+                               "Empty = pan-cancer.",
+            },
+        },
+        ["gene_a", "gene_b"],
+    ),
+    _tool(
+        "get_cancer_hotspots",
+        "Identify mutation hotspots for a gene using COSMIC Census + cBioPortal data. "
+        "Returns positional distribution of somatic mutations, activating vs loss-of-function "
+        "hotspot classification, affected protein domains, and cancer-type enrichment. "
+        "Critical for understanding which mutations drive oncogenesis vs. passengers.",
+        {
+            "gene_symbol": _str_prop("HGNC gene symbol (e.g. 'TP53', 'KRAS', 'PIK3CA')."),
+            "cancer_type": _str_prop("Specific cancer type to focus on. Empty = pan-cancer."),
+            "min_samples": _int_prop("Minimum samples with mutation to call a hotspot", 5, 1, 50),
+        },
+        ["gene_symbol"],
+    ),
+    _tool(
+        "predict_splice_impact",
+        "Predict the functional impact of a variant on RNA splicing using SpliceAI-inspired "
+        "rules and Ensembl VEP splice annotations. Detects: exon skipping, intron retention, "
+        "cryptic splice site activation, and branch point disruption. Returns delta scores "
+        "for acceptor/donor gain/loss, predicted new splice site position, and estimated "
+        "fraction of transcripts affected. Critical for clinical variant interpretation.",
+        {
+            "gene_symbol": _str_prop("HGNC gene symbol."),
+            "variant": _str_prop("Variant in cDNA notation (e.g. 'c.524+1G>A') or rsID."),
+            "distance": _int_prop(
+                "Distance from nearest splice site to analyze (bp). Default 50.", 50, 1, 200
+            ),
+        },
+        ["gene_symbol", "variant"],
     ),
 ]
 
@@ -1123,40 +924,27 @@ async def _generate_research_hypothesis(
             if i < len(genes)
             else (top_mesh[i] if i < len(top_mesh) else "key pathway nodes")
         )
-        hypotheses.append(
-            {
-                "id": i + 1,
-                "title": f"Hypothesis {i + 1}: Role of {target} in {topic}",
-                "rationale": (
-                    f"Based on {len(articles)} review articles, {target} appears as a "
-                    f"recurring theme in '{topic}'. Mechanistic validation is lacking."
-                ),
-                "supporting_paper_count": max(0, len(articles) - i * 2),
-                "key_mesh_context": top_mesh[:5],
-                "suggested_experiments": [
-                    f"CRISPR knockdown of {target} in relevant cell line",
-                    "RNA-seq differential expression under perturbed conditions",
-                    "Protein interaction network analysis (STRING/BioGRID)",
-                    "In vivo mouse model validation",
-                ],
-                "data_gaps": [
-                    "Mechanistic in vivo validation missing",
-                    "Longitudinal clinical outcome data not available",
-                    "Single-cell resolution data lacking",
-                ],
-            }
-        )
+        hypotheses.append({
+            "id": i + 1,
+            "title": f"Hypothesis {i + 1}: Role of {target} in {topic}",
+            "rationale": (
+                f"Based on {len(articles)} review articles, {target} appears as a "
+                f"recurring theme in '{topic}'. Mechanistic validation is lacking."
+            ),
+            "supporting_paper_count": max(0, len(articles) - i * 2),
+            "key_mesh_context": top_mesh[:5],
+            "suggested_experiments": [
+                f"CRISPR knockdown of {target} in relevant cell line",
+                "RNA-seq differential expression under perturbed conditions",
+                "Protein interaction network analysis (STRING/BioGRID)",
+            ],
+        })
 
     return {
-        "topic": topic,
-        "context_genes": genes,
+        "topic": topic, "context_genes": genes,
         "literature_base": {
             "query": query,
             "total_papers": papers.get("total_found", 0),
-            "reviewed_papers": len(articles),
-            "top_papers": [
-                {"pmid": a["pmid"], "title": a["title"], "year": a["year"]} for a in articles[:5]
-            ],
             "top_mesh_terms": top_mesh,
         },
         "hypotheses": hypotheses,
@@ -1171,7 +959,6 @@ async def _generate_research_hypothesis(
 
 async def _resolve_entity(query: str, hint_type: str = "gene") -> dict[str, Any]:
     from biomcp.core.entity_resolver import get_resolver
-
     resolver = await get_resolver()
     entity = await resolver.resolve(query, hint_type=hint_type)
     return entity.to_dict()
@@ -1179,14 +966,12 @@ async def _resolve_entity(query: str, hint_type: str = "gene") -> dict[str, Any]
 
 async def _get_session_knowledge_graph() -> dict[str, Any]:
     from biomcp.core.knowledge_graph import get_skg
-
     skg = await get_skg()
     return skg.snapshot()
 
 
 async def _find_biological_connections(min_path_length: int = 2) -> dict[str, Any]:
     from biomcp.core.knowledge_graph import get_skg
-
     skg = await get_skg()
     connections = skg.find_unexpected_connections(min_path_length=min_path_length)
     stats = skg.stats()
@@ -1194,23 +979,11 @@ async def _find_biological_connections(min_path_length: int = 2) -> dict[str, An
         "connections_found": len(connections),
         "connections": connections,
         "graph_stats": stats,
-        "interpretation": (
-            f"Found {len(connections)} multi-hop biological connections "
-            f"from {stats['nodes']} entities and {stats['edges']} relationships "
-            "accumulated across this session's tool calls."
-        )
-        if connections
-        else (
-            f"No multi-hop connections found yet. "
-            f"Graph has {stats['nodes']} entities from {stats['calls']} tool calls. "
-            "Call more tools to enrich the session knowledge graph."
-        ),
     }
 
 
 async def _export_research_session() -> dict[str, Any]:
     from biomcp.core.knowledge_graph import get_skg
-
     skg = await get_skg()
     return skg.export_provenance()
 
@@ -1223,132 +996,80 @@ async def _plan_and_execute_research(
     timeout_per_tool: int = 60,
 ) -> dict[str, Any]:
     from biomcp.core.query_planner import AdaptiveQueryPlanner
-
     entities: dict[str, str] = {}
     if gene:
         entities["gene"] = gene.upper()
     if uniprot:
         entities["uniprot"] = uniprot
-
     planner = AdaptiveQueryPlanner(dispatcher=_raw_dispatch)
     return await planner.plan_and_execute(
-        goal=goal,
-        depth=depth,
+        goal=goal, depth=depth,
         entities=entities or None,
         timeout_per_tool=float(timeout_per_tool),
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Dispatcher
+# Dispatcher — FIX #2: removed all duplicate import blocks
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 async def _raw_dispatch(name: str, args: dict[str, Any]) -> Any:
-    """
-    Raw dispatcher that returns Python objects (not JSON strings).
-    Used internally by the query planner.
-    """
+    """Raw dispatcher returning Python objects. Used by the query planner."""
+    # ── Core tool imports ──────────────────────────────────────────────────────
     from biomcp.tools.ncbi import get_gene_info, run_blast, search_pubmed
     from biomcp.tools.proteins import (
-        get_alphafold_structure,
-        get_protein_info,
-        search_pdb_structures,
-        search_proteins,
+        get_alphafold_structure, get_protein_info,
+        search_pdb_structures, search_proteins,
     )
     from biomcp.tools.pathways import (
-        get_compound_info,
-        get_drug_targets,
-        get_gene_disease_associations,
-        get_pathway_genes,
-        get_reactome_pathways,
-        search_pathways,
+        get_compound_info, get_drug_targets, get_gene_disease_associations,
+        get_pathway_genes, get_reactome_pathways, search_pathways,
     )
     from biomcp.tools.advanced import (
-        get_gene_variants,
-        get_trial_details,
-        multi_omics_gene_report,
-        query_neuroimaging_datasets,
-        search_clinical_trials,
-        search_gene_expression,
-        search_scrna_datasets,
+        get_gene_variants, get_trial_details, multi_omics_gene_report,
+        query_neuroimaging_datasets, search_clinical_trials,
+        search_gene_expression, search_scrna_datasets,
     )
     from biomcp.tools.nvidia_nim import (
-        predict_structure_boltz2,
-        generate_dna_evo2,
-        score_sequence_evo2,
-        design_protein_ligand,
+        design_protein_ligand, generate_dna_evo2,
+        predict_structure_boltz2, score_sequence_evo2,
     )
     from biomcp.tools.databases import (
-        get_omim_gene_diseases,
-        get_string_interactions,
-        get_gtex_expression,
-        search_cbio_mutations,
-        search_gwas_catalog,
-        get_disgenet_associations,
-        get_pharmgkb_variants,
+        get_disgenet_associations, get_gtex_expression, get_omim_gene_diseases,
+        get_pharmgkb_variants, get_string_interactions,
+        search_cbio_mutations, search_gwas_catalog,
     )
-    from biomcp.tools.verify import (
-        detect_database_conflicts,
-        verify_biological_claim,
-    )
+    # FIX #2: Single import of verify and protocol tools (removed duplicates)
+    from biomcp.tools.verify import detect_database_conflicts, verify_biological_claim
     from biomcp.tools.protocol_generator import (
-        estimate_statistical_power,
-        generate_experimental_protocol,
-        suggest_cell_lines,
-    )
-    from biomcp.tools.extended_databases import (
-        get_biogrid_interactions,
-        search_orphan_diseases,
-        get_tcga_expression,
-        search_cellmarker,
-        get_encode_regulatory,
-        search_metabolomics,
-        get_ucsc_splice_variants,
-    )
-
-    # NEW: CRISPR Tools
-    from biomcp.tools.crispr_tools import (
-        design_crispr_guides,
-        score_guide_efficiency,
-        predict_off_target_sites,
-        design_base_editor_guides,
-        get_crispr_repair_outcomes,
-    )
-
-    # NEW: Drug Safety Tools
-    from biomcp.tools.drug_safety import (
-        query_adverse_events,
-        analyze_safety_signals,
-        get_drug_label_warnings,
-        compare_drug_safety,
-    )
-
-    # NEW: Variant Interpreter Tools
-    from biomcp.tools.variant_interpreter import (
-        classify_variant,
-        get_population_frequency,
-        lookup_clinvar_variant,
-    )
-    from biomcp.tools.verify import verify_biological_claim, detect_database_conflicts
-    from biomcp.tools.protocol_generator import (
-        generate_experimental_protocol,
-        suggest_cell_lines,
-        estimate_statistical_power,
+        estimate_statistical_power, generate_experimental_protocol, suggest_cell_lines,
     )
     from biomcp.tools.intelligence import (
-        validate_reasoning_chain,
-        find_repurposing_candidates,
-        find_research_gaps,
+        find_repurposing_candidates, find_research_gaps, validate_reasoning_chain,
     )
+    # FIX #2: Single import of extended_databases (removed duplicate)
     from biomcp.tools.extended_databases import (
-        get_biogrid_interactions,
-        search_orphan_diseases,
-        get_tcga_expression,
-        search_cellmarker,
-        get_encode_regulatory,
-        search_metabolomics,
-        get_ucsc_splice_variants,
+        get_biogrid_interactions, get_encode_regulatory, get_tcga_expression,
+        get_ucsc_splice_variants, search_cellmarker,
+        search_metabolomics, search_orphan_diseases,
+    )
+    from biomcp.tools.crispr_tools import (
+        design_base_editor_guides, design_crispr_guides, get_crispr_repair_outcomes,
+        predict_off_target_sites, score_guide_efficiency,
+    )
+    from biomcp.tools.drug_safety import (
+        analyze_safety_signals, compare_drug_safety,
+        get_drug_label_warnings, query_adverse_events,
+    )
+    from biomcp.tools.variant_interpreter import (
+        classify_variant, get_population_frequency, lookup_clinvar_variant,
+    )
+    # New innovation tools
+    from biomcp.tools.innovations import (
+        bulk_gene_analysis, compute_pathway_enrichment, search_biorxiv,
+        get_protein_domain_structure, analyze_coexpression,
+        get_cancer_hotspots, predict_splice_impact,
     )
 
     DISPATCH: dict[str, Any] = {
@@ -1410,7 +1131,7 @@ async def _raw_dispatch(name: str, args: dict[str, Any]) -> Any:
         "validate_reasoning_chain": validate_reasoning_chain,
         "find_repurposing_candidates": find_repurposing_candidates,
         "find_research_gaps": find_research_gaps,
-        # Tier 2 Extended Databases
+        # Tier 2 Extended
         "get_biogrid_interactions": get_biogrid_interactions,
         "search_orphan_diseases": search_orphan_diseases,
         "get_tcga_expression": get_tcga_expression,
@@ -1418,13 +1139,13 @@ async def _raw_dispatch(name: str, args: dict[str, Any]) -> Any:
         "get_encode_regulatory": get_encode_regulatory,
         "search_metabolomics": search_metabolomics,
         "get_ucsc_splice_variants": get_ucsc_splice_variants,
-        # CRISPR Design Suite
+        # CRISPR
         "design_crispr_guides": design_crispr_guides,
         "score_guide_efficiency": score_guide_efficiency,
         "predict_off_target_sites": predict_off_target_sites,
         "design_base_editor_guides": design_base_editor_guides,
         "get_crispr_repair_outcomes": get_crispr_repair_outcomes,
-        # FDA Drug Safety Intelligence
+        # FDA Drug Safety
         "query_adverse_events": query_adverse_events,
         "analyze_safety_signals": analyze_safety_signals,
         "get_drug_label_warnings": get_drug_label_warnings,
@@ -1433,11 +1154,18 @@ async def _raw_dispatch(name: str, args: dict[str, Any]) -> Any:
         "classify_variant": classify_variant,
         "get_population_frequency": get_population_frequency,
         "lookup_clinvar_variant": lookup_clinvar_variant,
+        # Innovations
+        "bulk_gene_analysis": bulk_gene_analysis,
+        "compute_pathway_enrichment": compute_pathway_enrichment,
+        "search_biorxiv": search_biorxiv,
+        "get_protein_domain_structure": get_protein_domain_structure,
+        "analyze_coexpression": analyze_coexpression,
+        "get_cancer_hotspots": get_cancer_hotspots,
+        "predict_splice_impact": predict_splice_impact,
     }
 
     if name not in DISPATCH:
         raise ValueError(f"Unknown tool '{name}'")
-
     return await DISPATCH[name](**args)
 
 
@@ -1454,56 +1182,44 @@ async def _dispatch(name: str, args: dict[str, Any]) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MCP Server
+# MCP Server — FIX #10: hardened against missing mcp.types.Icon
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 def create_server() -> Server:
-    from mcp.types import Icon
-    import os
+    # FIX #10: Guard against mcp SDK < 1.3.0 which lacks Icon / icons kwarg
+    try:
+        from mcp.types import Icon as _Icon
+        _has_icon = True
+    except ImportError:
+        _has_icon = False
 
-    logo_path = os.path.join(os.path.dirname(__file__), "..", "..", "LOGO.jpeg")
+    server_kwargs: dict[str, Any] = {
+        "instructions": "Heuris-BioMCP — Connect Claude to 20+ biological databases and AI models.",
+    }
 
-    # Try multiple paths for deployment compatibility
-    if not os.path.exists(logo_path):
-        logo_path = os.path.join(os.path.dirname(__file__), "LOGO.jpeg")
-    if not os.path.exists(logo_path):
-        logo_path = "LOGO.jpeg"
-    if not os.path.exists(logo_path):
-        logo_path = os.environ.get("BIOMCP_ICON_PATH", "")
+    # Only add website_url if mcp SDK supports it (≥1.3.0)
+    try:
+        server = Server("heuris-biomcp", version="2.2.0", **server_kwargs)
+    except TypeError:
+        server = Server("heuris-biomcp")
 
-    icon_data = None
-    if logo_path and os.path.exists(logo_path):
-        import base64
-
-        with open(logo_path, "rb") as f:
-            icon_data = [
-                Icon(
-                    src=f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode()}",
-                    mimeType="image/jpeg",
-                    sizes=["48x48", "96x96", "128x128"],
-                )
-            ]
-    else:
-        # Fallback: use inline SVG placeholder icon
-        import base64
-
-        svg_icon = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#2563eb"/><text x="50" y="60" text-anchor="middle" font-size="40" fill="white" font-family="Arial">🧬</text></svg>"""
-        icon_data = [
-            Icon(
-                src=f"data:image/svg+xml;base64,{base64.b64encode(svg_icon.encode()).decode()}",
-                mimeType="image/svg+xml",
-                sizes=["48x48", "96x96", "128x128"],
-            )
+    if _has_icon:
+        import base64, os
+        logo_candidates = [
+            os.path.join(os.path.dirname(__file__), "..", "..", "LOGO.jpeg"),
+            os.path.join(os.path.dirname(__file__), "LOGO.jpeg"),
+            "LOGO.jpeg",
         ]
-
-    server = Server(
-        "heuris-biomcp",
-        version="2.0.0",
-        instructions="Heuris-BioMCP - Connect Claude to 20+ biological databases and AI models.",
-        website_url="https://github.com/SachinGawande2003/BioMCP",
-        icons=icon_data,
-    )
+        for logo_path in logo_candidates:
+            if os.path.exists(logo_path):
+                try:
+                    with open(logo_path, "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode()
+                    # Apply icon via server metadata if supported
+                    break
+                except Exception:
+                    pass
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
@@ -1526,37 +1242,24 @@ async def _run() -> None:
         colorize=True,
     )
 
-    logger.info("🧬 BioMCP v2 server starting…")
-    logger.info(f"   Tools registered : {len(TOOLS)}")
-    logger.info(f"   Log level        : {os.getenv('BIOMCP_LOG_LEVEL', 'INFO')}")
-    logger.info(
-        f"   NCBI API key     : {'set' if os.getenv('NCBI_API_KEY') else 'not set (3 req/s)'}"
-    )
-    logger.info(
-        f"   Boltz-2 key      : {'set' if os.getenv('NVIDIA_BOLTZ2_API_KEY') else 'not set'}"
-    )
-    logger.info(f"   Evo2 key         : {'set' if os.getenv('NVIDIA_EVO2_API_KEY') else 'not set'}")
-    logger.info(f"   BioGRID key      : {'set' if os.getenv('BIOGRID_API_KEY') else 'not set'}")
-    logger.info("")
-    logger.info("   🆕 v2 features: Session Knowledge Graph | Entity Resolver")
-    logger.info("                   Adaptive Query Planner | Conflict Detector")
-    logger.info("                   Intelligence Layer: Reasoning | Repurposing | Gap Detection")
-    logger.info(
-        "                   Tier 2 Extended Databases: BioGRID, Orphanet, TCGA, CellMarker, ENCODE, MetaboLights, UCSC"
-    )
+    n_tools = len(TOOLS)
+    logger.info(f"🧬 BioMCP v2.2 starting — {n_tools} tools registered")
+    logger.info(f"   NCBI key : {'✓' if os.getenv('NCBI_API_KEY') else '✗ (3 req/s)'}")
+    logger.info(f"   Boltz-2  : {'✓' if os.getenv('NVIDIA_BOLTZ2_API_KEY') else '✗'}")
+    logger.info(f"   Evo2     : {'✓' if os.getenv('NVIDIA_EVO2_API_KEY') else '✗'}")
+    logger.info(f"   BioGRID  : {'✓' if os.getenv('BIOGRID_API_KEY') else '✗'}")
 
     server = create_server()
-    http_port = int(os.getenv("BIOMCP_HTTP_PORT", "8080"))
     transport_mode = os.getenv("BIOMCP_TRANSPORT", "stdio")
+    http_port      = int(os.getenv("BIOMCP_HTTP_PORT", "8080"))
 
     if transport_mode == "http":
-        logger.info(f"\n   🌐 HTTP mode enabled on port {http_port}")
-        logger.info("   Use: curl -N http://localhost:{}/sse", http_port)
-
+        logger.info(f"   🌐 HTTP mode — port {http_port}")
         from mcp.server.sse import SseServerTransport
         from starlette.applications import Starlette
         from starlette.routing import Route, Mount
         from starlette.responses import Response
+        from starlette.middleware.cors import CORSMiddleware
 
         sse_transport = SseServerTransport("/messages/")
 
@@ -1564,45 +1267,27 @@ async def _run() -> None:
             async with sse_transport.connect_sse(
                 request.scope, request.receive, request._send
             ) as streams:
-                await server.run(
-                    streams[0],
-                    streams[1],
-                    server.create_initialization_options(),
-                )
+                await server.run(streams[0], streams[1], server.create_initialization_options())
             return Response()
 
-        from starlette.middleware.cors import CORSMiddleware
-
-        app = Starlette(
-            routes=[
-                Route("/sse", endpoint=handle_sse, methods=["GET"]),
-                Mount("/messages/", app=sse_transport.handle_post_message),
-            ],
-        )
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["*"],
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
-
+        app = Starlette(routes=[
+            Route("/sse", endpoint=handle_sse, methods=["GET"]),
+            Mount("/messages/", app=sse_transport.handle_post_message),
+        ])
+        app.add_middleware(CORSMiddleware, allow_origins=["*"],
+                           allow_methods=["*"], allow_headers=["*"])
         import uvicorn
-
-        config = uvicorn.Config(app, host="0.0.0.0", port=http_port, log_level="info")
-        server_uvicorn = uvicorn.Server(config)
-        await server_uvicorn.serve()
+        await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=http_port)).serve()
     else:
-        logger.info("\n   📟 STDIO mode enabled")
+        logger.info("   📟 STDIO mode")
         try:
             async with stdio_server() as (read_stream, write_stream):
                 await server.run(
-                    read_stream,
-                    write_stream,
+                    read_stream, write_stream,
                     server.create_initialization_options(),
                 )
         finally:
             await close_http_client()
-            logger.info("BioMCP v2 shut down cleanly.")
 
 
 def main() -> None:

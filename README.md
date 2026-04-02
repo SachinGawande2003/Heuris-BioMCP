@@ -5,14 +5,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
-[![Tools: 59](https://img.shields.io/badge/Tools-59-blue.svg)](#tools-59-total)
-[![Databases: 20+](https://img.shields.io/badge/Databases-20+-purple.svg)](#databases--ai-models)
+[![Tools: 71](https://img.shields.io/badge/Tools-71-blue.svg)](#tools-71-total)
+[![Databases: 30+](https://img.shields.io/badge/Databases-30+-purple.svg)](#databases--ai-models)
 [![Live Demo](https://img.shields.io/badge/Live-Demo-brightgreen)](https://heuris-biomcp.onrender.com)
 
 **The most comprehensive Model Context Protocol server for life sciences v2.**  
 Connect Claude to every major biological database and state-of-the-art AI models — no API wrappers, no copy-pasting, just science.
 
-[🚀 Quick Start](#quick-start) • [🔧 Tools](#tools-59-total) • [📊 Databases](#databases--ai-models) • [💡 Examples](#usage-examples) • [🤝 Contributing](#contributing)
+[🚀 Quick Start](#quick-start) • [🔧 Tools](#tools-71-total) • [📊 Databases](#databases--ai-models) • [💡 Examples](#usage-examples) • [🤝 Contributing](#contributing)
 
 </div>
 
@@ -71,20 +71,20 @@ Claude + Heuris-BioMCP → Queries ChEMBL + ClinicalTrials.gov simultaneously �
 
 ---
 
-## What's New in v2
+## What's New in v2.2
 
-- **Extended Databases**: 7 new database integrations (OMIM, STRING, GTEx, cBioPortal, GWAS Catalog, DisGeNET, PharmGKB)
-- **Biological Claim Verification**: Verify claims against multiple databases with evidence grading
-- **Conflict Detection**: Identify inconsistencies across databases
-- **Experimental Design**: Generate protocols, suggest cell lines, calculate statistical power
-- **Session Knowledge Graph**: Auto-built entity graph from all tool calls
-- **Entity Resolution**: Canonical IDs across HGNC/UniProt/Ensembl/NCBI
-- **Adaptive Query Planner**: Dependency-aware parallel execution DAG
-- **Reproducibility Export**: Full provenance + citations + reproducible script generation
+- **71-tool server surface**: Expanded tool registry covering literature, omics, clinical, CRISPR, safety, variants, and innovation workflows
+- **CRISPR Design Suite**: Guide design, efficiency scoring, off-target analysis, base editing, and repair-outcome prediction
+- **FDA Drug Safety Intelligence**: FAERS adverse event search, disproportionality analysis, label warnings, and head-to-head safety comparison
+- **Variant Interpretation**: ACMG/AMP classification, gnomAD population frequency lookups, and ClinVar evidence retrieval
+- **Innovation Workflows**: Bulk multi-gene analysis, pathway enrichment, preprint search, InterPro domain mapping, coexpression, cancer hotspots, and splice impact prediction
+- **Tier 2 Database Expansion**: BioGRID, Orphanet, TCGA/GDC, CellMarker, ENCODE, MetaboLights, and UCSC splice isoforms
+- **Session Intelligence**: Entity resolution, session knowledge graph, biological connection discovery, export, and adaptive research planning
+- **Remote MCP Deployment**: HTTP/SSE server support for hosted endpoints such as Render
 
 ---
 
-## Tools (42 total)
+## Tools (71 total)
 
 ### 📚 Literature & NCBI
 | Tool | Description |
@@ -200,6 +200,17 @@ Claude + Heuris-BioMCP → Queries ChEMBL + ClinicalTrials.gov simultaneously �
 | `get_population_frequency` | Query gnomAD v4 for population-specific allele frequencies |
 | `lookup_clinvar_variant` | Search ClinVar for clinical significance and submissions |
 
+### 🚀 Innovations (7 tools)
+| Tool | Description |
+|------|-------------|
+| `bulk_gene_analysis` | Parallel multi-gene comparison across NCBI, ChEMBL, Open Targets, and Reactome |
+| `compute_pathway_enrichment` | Fisher exact test pathway enrichment from gene lists |
+| `search_biorxiv` | Search bioRxiv and medRxiv preprints for the latest research |
+| `get_protein_domain_structure` | InterPro domain architecture and functional region lookup |
+| `analyze_coexpression` | TCGA/GTEx-inspired coexpression analysis for candidate genes |
+| `get_cancer_hotspots` | Cancer mutation hotspot mapping from public cancer genomics sources |
+| `predict_splice_impact` | Predict splice-region impact using Ensembl/VEP-style consequence rules |
+
 ---
 
 ## Databases & AI Models
@@ -231,6 +242,22 @@ Claude + Heuris-BioMCP → Queries ChEMBL + ClinicalTrials.gov simultaneously �
 | GWAS Catalog | Trait Associations | https://www.ebi.ac.uk/gwas |
 | DisGeNET | Disease-Gene | https://www.disgenet.org |
 | PharmGKB | Pharmacogenomics | https://www.pharmgkb.org |
+| **v2.2 Tier 2 Databases** |
+| BioGRID | Protein Interactions | https://thebiogrid.org |
+| Orphanet | Rare Diseases | https://www.orpha.net |
+| GDC / TCGA | Tumor Genomics | https://portal.gdc.cancer.gov |
+| CellMarker | Cell Type Markers | http://xteam.xbio.top/CellMarker |
+| ENCODE | Regulatory Elements | https://www.encodeproject.org |
+| MetaboLights | Metabolomics | https://www.ebi.ac.uk/metabolights |
+| UCSC Genome Browser | Splice Isoforms | https://genome.ucsc.edu |
+| **Safety, Variant & Innovation Sources** |
+| OpenFDA / FAERS | Drug Safety | https://api.fda.gov |
+| DailyMed | Drug Labels | https://dailymed.nlm.nih.gov |
+| ClinVar | Clinical Variants | https://www.ncbi.nlm.nih.gov/clinvar |
+| gnomAD | Population Variation | https://gnomad.broadinstitute.org |
+| bioRxiv / medRxiv | Preprints | https://www.biorxiv.org |
+| InterPro | Protein Domains | https://www.ebi.ac.uk/interpro |
+| COSMIC | Cancer Mutations | https://cancer.sanger.ac.uk/cosmic |
 | **AI Models (NVIDIA NIM)** |
 | MIT Boltz-2 | Structure Prediction | https://build.nvidia.com/mit/boltz2 |
 | Arc Evo2-40B | DNA Generation | https://build.nvidia.com/arc/evo2-40b |
