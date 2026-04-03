@@ -95,6 +95,26 @@ async def test_get_gene_variants_not_found(mock_http_client, mock_http_response)
 
 
 @pytest.mark.asyncio
+async def test_get_gene_variants_handles_ensembl_overlap_error(mock_http_client, mock_http_response):
+    xref_resp = mock_http_response(json_data=[{"id": "ENSG00000141510", "type": "gene"}])
+    lookup_resp = mock_http_response(
+        json_data={"seq_region_name": "17", "start": 7661779, "end": 7687546}
+    )
+    overlap_error = mock_http_response(status_code=404)
+    mock_http_client.get = AsyncMock(side_effect=[xref_resp, lookup_resp, overlap_error])
+
+    with patch("biomcp.tools.advanced.get_http_client", return_value=mock_http_client):
+        from biomcp.tools.advanced import get_gene_variants
+
+        result = await get_gene_variants.__wrapped__.__wrapped__.__wrapped__("TP53")
+
+    assert result["gene"] == "TP53"
+    assert result["variants"] == []
+    assert result["returned"] == 0
+    assert "error" in result
+
+
+@pytest.mark.asyncio
 async def test_query_neuroimaging_handles_failure_gracefully(mock_http_client, mock_http_response):
     mock_http_client.post = AsyncMock(side_effect=Exception("Connection error"))
     mock_http_client.get  = AsyncMock(side_effect=Exception("Connection error"))

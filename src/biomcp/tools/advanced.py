@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+import httpx
 from loguru import logger
 
 from biomcp.utils import (
@@ -202,31 +203,59 @@ async def get_gene_variants(
     max_results = BioValidator.clamp_int(max_results, 1, 100, "max_results")
     client      = await get_http_client()
 
-    xref_resp = await client.get(
-        f"{ENSEMBL_BASE}/xrefs/symbol/homo_sapiens/{gene_symbol}",
-        headers={"Accept": "application/json"},
-    )
-    xref_resp.raise_for_status()
+    try:
+        xref_resp = await client.get(
+            f"{ENSEMBL_BASE}/xrefs/symbol/homo_sapiens/{gene_symbol}",
+            headers={"Accept": "application/json"},
+        )
+        xref_resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        return {
+            "gene": gene_symbol,
+            "variants": [],
+            "error": f"Ensembl gene lookup failed for '{gene_symbol}': {exc}",
+        }
     gene_ids = [e["id"] for e in xref_resp.json() if e.get("type") == "gene"]
     if not gene_ids:
         return {"gene": gene_symbol, "variants": [],
                 "error": f"'{gene_symbol}' not found in Ensembl."}
 
     gene_id  = gene_ids[0]
-    lookup   = await client.get(f"{ENSEMBL_BASE}/lookup/id/{gene_id}",
-                                 headers={"Accept": "application/json"})
-    lookup.raise_for_status()
+    try:
+        lookup = await client.get(
+            f"{ENSEMBL_BASE}/lookup/id/{gene_id}",
+            headers={"Accept": "application/json"},
+        )
+        lookup.raise_for_status()
+    except httpx.HTTPError as exc:
+        return {
+            "gene": gene_symbol,
+            "ensembl_gene_id": gene_id,
+            "variants": [],
+            "error": f"Ensembl locus lookup failed for '{gene_symbol}': {exc}",
+        }
     info     = lookup.json()
     chrom    = info.get("seq_region_name", "")
     start    = info.get("start", 0)
     end      = min(info.get("end", 0), start + 200_000)
 
-    var_resp = await client.get(
-        f"{ENSEMBL_BASE}/overlap/region/human/{chrom}:{start}-{end}/variation",
-        headers={"Accept": "application/json"},
-        params={"feature": "variation"},
-    )
-    var_resp.raise_for_status()
+    try:
+        var_resp = await client.get(
+            f"{ENSEMBL_BASE}/overlap/region/human/{chrom}:{start}-{end}/variation",
+            headers={"Accept": "application/json"},
+            params={"feature": "variation"},
+        )
+        var_resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        return {
+            "gene": gene_symbol,
+            "ensembl_gene_id": gene_id,
+            "chromosome": chrom,
+            "total_variants": 0,
+            "returned": 0,
+            "variants": [],
+            "error": f"Ensembl variant lookup failed for '{gene_symbol}': {exc}",
+        }
     all_vars = var_resp.json()
 
     variants: list[dict[str, Any]] = []
