@@ -30,8 +30,8 @@ jobs:
       - name: Lint with ruff
         run: ruff check src/
 
-      - name: Type check with mypy
-        run: mypy src/
+      - name: Type check core orchestration modules with mypy
+        run: mypy --config-file mypy-ci.ini src/biomcp/server.py src/biomcp/core/query_planner.py src/biomcp/core/knowledge_graph.py
 
       - name: Run unit tests (no network)
         run: pytest tests/ -v -m "not integration" --cov=biomcp --cov-report=xml

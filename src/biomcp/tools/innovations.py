@@ -25,7 +25,6 @@ from __future__ import annotations
 import asyncio
 import math
 import re
-import time
 from typing import Any
 
 from loguru import logger
@@ -66,7 +65,11 @@ async def bulk_gene_analysis(
         }
     """
     from biomcp.tools.ncbi import get_gene_info
-    from biomcp.tools.pathways import get_drug_targets, get_gene_disease_associations, get_reactome_pathways
+    from biomcp.tools.pathways import (
+        get_drug_targets,
+        get_gene_disease_associations,
+        get_reactome_pathways,
+    )
 
     if not gene_symbols or len(gene_symbols) < 2:
         raise ValueError("Provide at least 2 gene symbols for bulk analysis.")
@@ -78,9 +81,12 @@ async def bulk_gene_analysis(
 
     async def _analyze_gene(gene: str) -> dict[str, Any]:
         tasks: list[Any] = [asyncio.create_task(get_gene_info(gene))]
-        if "drugs"    in axes: tasks.append(asyncio.create_task(get_drug_targets(gene, max_results=10)))
-        if "diseases" in axes: tasks.append(asyncio.create_task(get_gene_disease_associations(gene, max_results=8)))
-        if "pathways" in axes: tasks.append(asyncio.create_task(get_reactome_pathways(gene)))
+        if "drugs" in axes:
+            tasks.append(asyncio.create_task(get_drug_targets(gene, max_results=10)))
+        if "diseases" in axes:
+            tasks.append(asyncio.create_task(get_gene_disease_associations(gene, max_results=8)))
+        if "pathways" in axes:
+            tasks.append(asyncio.create_task(get_reactome_pathways(gene)))
 
         raw = await asyncio.gather(*tasks, return_exceptions=True)
         result: dict[str, Any] = {"gene": gene}
@@ -193,7 +199,7 @@ async def compute_pathway_enrichment(
     gene_set = {BioValidator.validate_gene_symbol(g) for g in gene_list}
     n_query  = len(gene_set)
 
-    from biomcp.tools.pathways import search_pathways, get_pathway_genes, get_reactome_pathways
+    from biomcp.tools.pathways import get_reactome_pathways, search_pathways
 
     # Gather pathway-gene sets
     pathway_gene_sets: list[dict[str, Any]] = []
@@ -259,7 +265,8 @@ async def compute_pathway_enrichment(
         # Hypergeometric / Fisher exact: p = C(K,k)*C(N-K,n-k)/C(N,n)
         # Use log-gamma for numerical stability
         def _log_comb(n: int, k: int) -> float:
-            if k < 0 or k > n: return -float("inf")
+            if k < 0 or k > n:
+                return -float("inf")
             return math.lgamma(n + 1) - math.lgamma(k + 1) - math.lgamma(n - k + 1)
 
         N = background_size
@@ -630,7 +637,7 @@ async def analyze_coexpression(
         "literature_support":       lit_support,
         "tools_for_exact_correlation": {
             "GEPIA2":   f"http://gepia2.cancer-pku.cn/#correlation?gene={gene_a}&method=pearson&rownum=20",
-            "TIMER2.0": f"http://timer.cistrome.org/",
+            "TIMER2.0": "http://timer.cistrome.org/",
             "cBioPortal":f"https://www.cbioportal.org/results/coexpression?gene={gene_a}",
             "note": "These web tools compute exact Pearson/Spearman from TCGA/GTEx RNA-seq.",
         },
@@ -932,8 +939,8 @@ async def predict_splice_impact(
             else ["BP4"]            if impact_score < 0.1
             else ["PP3"]
         ),
-        "spliceai_url": f"https://spliceailookup.broadinstitute.org/",
-        "ensembl_vep":  f"https://www.ensembl.org/Tools/VEP",
+        "spliceai_url": "https://spliceailookup.broadinstitute.org/",
+        "ensembl_vep":  "https://www.ensembl.org/Tools/VEP",
         "methodology":  (
             "Impact scored using positional rules (Shapiro-Senapathy) + Ensembl VEP consequences. "
             "Delta scores are approximate. For clinical use, run SpliceAI v1.3 locally."

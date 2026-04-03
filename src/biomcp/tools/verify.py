@@ -17,10 +17,6 @@ from loguru import logger
 
 from biomcp.utils import (
     BioValidator,
-    cached,
-    get_http_client,
-    rate_limited,
-    with_retry,
 )
 
 
@@ -51,9 +47,9 @@ async def verify_biological_claim(
         D — Weak/conflicting evidence
         F — Contradicted by primary databases
     """
-    from biomcp.tools.ncbi     import search_pubmed
-    from biomcp.tools.proteins import search_proteins
+    from biomcp.tools.ncbi import search_pubmed
     from biomcp.tools.pathways import get_gene_disease_associations
+    from biomcp.tools.proteins import search_proteins
 
     claim_lower = claim.lower()
 
@@ -86,7 +82,7 @@ async def verify_biological_claim(
     selected_tasks = dict(list(evidence_tasks.items())[:max_evidence_sources])
 
     raw_results = await asyncio.gather(*selected_tasks.values(), return_exceptions=True)
-    results_by_source = dict(zip(selected_tasks.keys(), raw_results))
+    results_by_source = dict(zip(selected_tasks.keys(), raw_results, strict=False))
 
     supporting:    list[dict[str, Any]] = []
     contradicting: list[dict[str, Any]] = []
@@ -233,9 +229,9 @@ async def detect_database_conflicts(
     Scan for conflicting biological information about a gene across databases.
     FIX: Added try/except on dict accesses; fixed asyncio import.
     """
-    from biomcp.tools.ncbi     import get_gene_info
-    from biomcp.tools.proteins import search_proteins
+    from biomcp.tools.ncbi import get_gene_info
     from biomcp.tools.pathways import get_drug_targets, get_gene_disease_associations
+    from biomcp.tools.proteins import search_proteins
 
     gene_symbol = BioValidator.validate_gene_symbol(gene_symbol)
     logger.info(f"[ConflictDetector] Scanning databases for {gene_symbol}")

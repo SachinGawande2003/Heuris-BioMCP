@@ -23,8 +23,8 @@ from typing import Any
 from loguru import logger
 
 from biomcp.utils import (
-    BioValidator,
     _NCBI_SERVICE,
+    BioValidator,
     cached,
     get_http_client,
     ncbi_params,

@@ -21,9 +21,10 @@ import hashlib
 import json
 import os
 import time
-from collections import defaultdict, deque
+from collections import defaultdict
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 import httpx
 from cachetools import TTLCache

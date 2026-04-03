@@ -14,39 +14,37 @@ Components:
                      execution, dependency resolution, and insight synthesis
 """
 
-from biomcp.core.knowledge_graph import (
-    SessionKnowledgeGraph,
-    SKGNode,
-    SKGEdge,
-    NodeType,
-    EdgeType,
-    get_skg,
-    reset_skg,
-    auto_index,
-    # Extractors
-    index_pubmed_result,
-    index_gene_result,
-    index_protein_result,
-    index_drug_targets_result,
-    index_disease_associations_result,
-    index_pathways_result,
-    index_clinical_trials_result,
-    index_variants_result,
-)
-
 from biomcp.core.entity_resolver import (
     BioEntity,
     EntityRegistry,
     EntityResolver,
-    get_resolver,
     get_registry,
+    get_resolver,
 )
-
+from biomcp.core.knowledge_graph import (
+    EdgeType,
+    NodeType,
+    SessionKnowledgeGraph,
+    SKGEdge,
+    SKGNode,
+    auto_index,
+    get_skg,
+    index_clinical_trials_result,
+    index_disease_associations_result,
+    index_drug_targets_result,
+    index_gene_result,
+    index_pathways_result,
+    index_protein_result,
+    # Extractors
+    index_pubmed_result,
+    index_variants_result,
+    reset_skg,
+)
 from biomcp.core.query_planner import (
     AdaptiveQueryPlanner,
-    ResearchPlan,
-    PlanNode,
     NodeStatus,
+    PlanNode,
+    ResearchPlan,
 )
 
 __all__ = [

@@ -7,7 +7,7 @@ Fixes applied:
 
 from __future__ import annotations
 
-import asyncio                  # FIX #4: was inside search_pdb_structures function body
+import asyncio  # FIX #4: was inside search_pdb_structures function body
 from typing import Any
 
 import numpy as np
@@ -60,7 +60,9 @@ async def get_protein_info(accession: str) -> dict[str, Any]:
     ]
 
     comments = d.get("comments", [])
-    _txt     = lambda c: (c.get("texts") or [{}])[0].get("value", "")
+
+    def _txt(comment: dict[str, Any]) -> str:
+        return (comment.get("texts") or [{}])[0].get("value", "")
 
     functions = [_txt(c) for c in comments if c.get("commentType") == "FUNCTION"]
     ptms      = [_txt(c) for c in comments if c.get("commentType") == "PTM"]

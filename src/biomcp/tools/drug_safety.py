@@ -35,7 +35,6 @@ from typing import Any
 from loguru import logger
 
 from biomcp.utils import (
-    BioValidator,
     cached,
     get_http_client,
     rate_limited,
@@ -243,7 +242,7 @@ async def query_adverse_events(
             "FAERS data reflects voluntary and mandatory reports. "
             "Causality cannot be determined from reporting frequency alone. "
             "Use clinical judgment and consult FDA labeling for safety decisions. "
-            f"Data current through latest FAERS quarterly release."
+            "Data current through latest FAERS quarterly release."
         ),
     }
 
@@ -496,12 +495,6 @@ async def get_drug_label_warnings(
         }
     """
     client = await get_http_client()
-
-    default_sections = sections or [
-        "boxed_warning", "warnings_and_cautions", "contraindications",
-        "adverse_reactions", "drug_interactions", "use_in_specific_populations",
-        "overdosage",
-    ]
 
     # Search label database
     label_resp = await client.get(

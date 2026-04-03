@@ -33,7 +33,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import json
 import os
 import time
 from typing import Any
@@ -42,9 +41,6 @@ from loguru import logger
 
 from biomcp.utils import (
     BioValidator,
-    cached,
-    format_error,
-    format_success,
     get_http_client,
     rate_limited,
     with_retry,
@@ -78,7 +74,7 @@ EVO2_API_KEY: str = (
 def _boltz2_headers() -> dict[str, str]:
     """Auth headers for Boltz-2 API calls."""
     if not BOLTZ2_API_KEY:
-        raise EnvironmentError(
+        raise OSError(
             "Boltz-2 API key not set. "
             "Add NVIDIA_BOLTZ2_API_KEY=nvapi-... to your .env file.\n"
             "Get a free key at: https://build.nvidia.com/mit/boltz2 → 'Get API Key'"
@@ -93,7 +89,7 @@ def _boltz2_headers() -> dict[str, str]:
 def _evo2_headers() -> dict[str, str]:
     """Auth headers for Evo2-40B API calls."""
     if not EVO2_API_KEY:
-        raise EnvironmentError(
+        raise OSError(
             "Evo2-40B API key not set. "
             "Add NVIDIA_EVO2_API_KEY=nvapi-... to your .env file.\n"
             "Get a free key at: https://build.nvidia.com/arc/evo2-40b → 'Get API Key'"
@@ -687,7 +683,7 @@ async def score_sequence_evo2(
         )
 
     # Find mutation positions
-    mutations = [i for i, (w, v) in enumerate(zip(wt, var)) if w != v]
+    mutations = [i for i, (w, v) in enumerate(zip(wt, var, strict=False)) if w != v]
     if not mutations:
         return {
             "status":             "no_mutations",

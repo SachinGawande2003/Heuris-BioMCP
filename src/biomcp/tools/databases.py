@@ -9,8 +9,8 @@ Fixes applied:
 
 from __future__ import annotations
 
-import asyncio                   # FIX #3: was missing at module level
-import statistics                # FIX #5: was inside get_gtex_expression function
+import asyncio  # FIX #3: was missing at module level
+import statistics  # FIX #5: was inside get_gtex_expression function
 from typing import Any
 
 from loguru import logger
@@ -43,6 +43,7 @@ async def get_omim_gene_diseases(gene_symbol: str) -> dict[str, Any]:
     gene_symbol = BioValidator.validate_gene_symbol(gene_symbol)
     client      = await get_http_client()
     import xml.etree.ElementTree as ET
+
     from biomcp.utils import ncbi_params
 
     esearch = await client.get(
@@ -95,10 +96,14 @@ async def get_omim_gene_diseases(gene_symbol: str) -> dict[str, Any]:
             continue
         inheritance = ""
         tl = title.lower()
-        if "autosomal dominant" in tl:   inheritance = "Autosomal Dominant (AD)"
-        elif "autosomal recessive" in tl: inheritance = "Autosomal Recessive (AR)"
-        elif "x-linked" in tl:           inheritance = "X-Linked (XL)"
-        elif "mitochondrial" in tl:      inheritance = "Mitochondrial (MT)"
+        if "autosomal dominant" in tl:
+            inheritance = "Autosomal Dominant (AD)"
+        elif "autosomal recessive" in tl:
+            inheritance = "Autosomal Recessive (AR)"
+        elif "x-linked" in tl:
+            inheritance = "X-Linked (XL)"
+        elif "mitochondrial" in tl:
+            inheritance = "Mitochondrial (MT)"
         diseases.append({
             "omim_id":            omim_id,
             "phenotype":          title,

@@ -26,7 +26,6 @@ Scientific basis:
 
 from __future__ import annotations
 
-import asyncio
 import re
 from typing import Any
 
@@ -135,7 +134,6 @@ def _score_guide(
     Returns score 0–100 with feature breakdown for interpretability.
     """
     seq  = sequence.upper()
-    n    = len(seq)
     cfg  = _CAS_CONFIG.get(cas_variant, _CAS_CONFIG["SpCas9"])
     glen = cfg["guide_len"]
 
@@ -342,12 +340,6 @@ async def design_crispr_guides(
     lookup_resp.raise_for_status()
     gene_data = lookup_resp.json()
 
-    gene_id   = gene_data.get("id", "")
-    chrom     = gene_data.get("seq_region_name", "")
-    gene_start= gene_data.get("start", 0)
-    gene_end  = gene_data.get("end", 0)
-    strand_num= gene_data.get("strand", 1)
-
     # Get canonical transcript
     transcripts = gene_data.get("Transcript", [])
     canonical   = None
@@ -428,7 +420,7 @@ async def design_crispr_guides(
 
         # Determine which exon this guide targets
         target_exon = 1  # simplified — would need exact position mapping for accuracy
-        for j, exon in enumerate(exons, 1):
+        for j, _exon in enumerate(exons, 1):
             exon_cds_pos = sum(len(exons[k].get("id", "")) for k in range(j-1))
             if pos < exon_cds_pos + 200:
                 target_exon = j
@@ -615,7 +607,7 @@ def _check_pam_compatibility(pam: str, pattern: str) -> bool:
     }
     if len(pam) < len(pattern):
         return False
-    for p_nt, ref_nt in zip(pam, pattern):
+    for p_nt, ref_nt in zip(pam, pattern, strict=False):
         allowed = _iupac.get(ref_nt, ref_nt)
         if p_nt not in allowed:
             return False
@@ -837,7 +829,6 @@ async def design_base_editor_guides(
     }
 
     editor_info = _editor_info.get(editor_type, _editor_info["CBE"])
-    window_note = editor_info["edit_window"]
 
     # Use the existing guide design for the gene, then filter for base editor compatibility
     try:
@@ -945,8 +936,6 @@ async def get_crispr_repair_outcomes(
 
     # NHEJ outcome prediction (simplified Shen 2018 model)
     # Key: GC content of cut site affects indel distribution
-    gc_pct = (seq.count('G') + seq.count('C')) / len(seq) * 100
-
     # Frameshift probability correlates with indel pattern
     # Based on FORECasT model principles (Favored Outcomes of Repair Events CRISPRs are T)
     insertion_bias   = 0.40  # ~40% of indels are insertions (+1 most common)

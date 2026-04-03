@@ -13,8 +13,6 @@ import asyncio
 import os
 from typing import Any
 
-from loguru import logger
-
 from biomcp.utils import (
     BioValidator,
     cached,
@@ -267,7 +265,7 @@ async def search_cellmarker(
             cols = line.split("\t")
             if len(cols) < len(headers):
                 continue
-            row = dict(zip(headers, cols))
+            row = dict(zip(headers, cols, strict=False))
             if species.lower() not in row.get("speciesType", "Human").lower():
                 continue
             if tissue and tissue.lower() not in row.get("tissueType", "").lower():

@@ -38,19 +38,19 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable
+from enum import StrEnum
+from typing import Any
 from uuid import uuid4
 
 from loguru import logger
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Plan Node — a single tool call in the DAG
 # ─────────────────────────────────────────────────────────────────────────────
 
-class NodeStatus(str, Enum):
+class NodeStatus(StrEnum):
     PENDING   = "pending"
     RUNNING   = "running"
     COMPLETE  = "complete"
@@ -156,7 +156,7 @@ class ResearchPlan:
 # Intent Templates — maps research goals to tool sequences
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _gene_drug_target_plan(gene: str, depth: str) -> list[dict]:
+def _gene_drug_target_plan(gene: str, depth: str) -> list[dict[str, Any]]:
     """Plan: understand a gene as a drug target."""
     n0 = str(uuid4().hex[:6])
     n1 = str(uuid4().hex[:6])
@@ -189,7 +189,7 @@ def _gene_drug_target_plan(gene: str, depth: str) -> list[dict]:
     return base
 
 
-def _disease_genomics_plan(disease: str, gene: str) -> list[dict]:
+def _disease_genomics_plan(disease: str, gene: str) -> list[dict[str, Any]]:
     """Plan: genomics-first disease investigation."""
     n0 = str(uuid4().hex[:6])
     n1 = str(uuid4().hex[:6])
@@ -205,7 +205,9 @@ def _disease_genomics_plan(disease: str, gene: str) -> list[dict]:
     ]
 
 
-def _protein_structure_plan(uniprot: str, ligand: str | None = None) -> list[dict]:
+def _protein_structure_plan(
+    uniprot: str, ligand: str | None = None
+) -> list[dict[str, Any]]:
     """Plan: protein structure and binding analysis."""
     n0 = str(uuid4().hex[:6])
     n1 = str(uuid4().hex[:6])
@@ -238,7 +240,7 @@ class AdaptiveQueryPlanner:
         )
     """
 
-    def __init__(self, dispatcher: Callable[[str, dict], Any]) -> None:
+    def __init__(self, dispatcher: Callable[[str, dict[str, Any]], Any]) -> None:
         self._dispatch = dispatcher
 
     def _classify_intent(self, goal: str) -> tuple[str, dict[str, str]]:
@@ -391,7 +393,7 @@ class AdaptiveQueryPlanner:
             node.status      = NodeStatus.COMPLETE
             node.completed_at= time.monotonic()
             logger.debug(f"[Planner] ✓ {node.tool_name} ({node.elapsed_s}s)")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             node.status       = NodeStatus.FAILED
             node.error        = f"Timed out after {timeout}s"
             node.completed_at = time.monotonic()
@@ -419,8 +421,10 @@ class AdaptiveQueryPlanner:
             result = node.result or {}
             if isinstance(result, str):
                 import json
-                try: result = json.loads(result)
-                except: result = {}
+                try:
+                    result = json.loads(result)
+                except json.JSONDecodeError:
+                    result = {}
             drugs = result.get("data", {}).get("drugs", []) if isinstance(result, dict) else []
             if isinstance(result, dict) and "drugs" in result:
                 drugs = result["drugs"]

@@ -26,10 +26,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from loguru import logger
-
 from biomcp.utils import BioValidator
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Reagent database — common reagents for molecular biology assays
@@ -322,10 +319,10 @@ async def generate_experimental_protocol(
     Returns:
         Full protocol object with all sections needed for bench execution.
     """
-    from biomcp.tools.ncbi import search_pubmed, get_gene_info
-
     # ── Extract entities ──────────────────────────────────────────────────────
     import re
+
+    from biomcp.tools.ncbi import get_gene_info, search_pubmed
     hyp_lower = hypothesis.lower()
 
     if not gene_symbol:
@@ -557,7 +554,9 @@ async def suggest_cell_lines(
     # Filter by molecular feature if specified
     if feature_lower or gene_upper:
         search_term = feature_lower or gene_upper.lower()
-        lines = [l for l in lines if search_term in l.get("notes", "").lower()] or lines
+        lines = [
+            line for line in lines if search_term in line.get("notes", "").lower()
+        ] or lines
 
     lines = lines[:max_results]
 

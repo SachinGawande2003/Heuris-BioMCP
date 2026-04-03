@@ -14,14 +14,14 @@ import asyncio
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
 from loguru import logger
 
 
-class NodeType(str, Enum):
+class NodeType(StrEnum):
     GENE          = "Gene"
     PROTEIN       = "Protein"
     DRUG          = "Drug"
@@ -34,7 +34,7 @@ class NodeType(str, Enum):
     ORGANISM      = "Organism"
 
 
-class EdgeType(str, Enum):
+class EdgeType(StrEnum):
     TARGETS         = "TARGETS"
     TREATS          = "TREATS"
     IN_PATHWAY      = "IN_PATHWAY"
@@ -253,7 +253,7 @@ class SessionKnowledgeGraph:
         paths: list[list[dict[str, Any]]] = []
         # FIX: queue element = (current_node_id, path_so_far, visited_node_ids)
         # Each path carries its own visited set — no shared index needed
-        queue: deque[tuple[str, list[dict], frozenset[str]]] = deque([
+        queue: deque[tuple[str, list[dict[str, Any]], frozenset[str]]] = deque([
             (start.node_id, [{"node": start.to_dict()}], frozenset({start.node_id}))
         ])
 
@@ -345,7 +345,9 @@ class SessionKnowledgeGraph:
                         })
         return connections[:15]
 
-    def record_tool_call(self, tool_name: str, args: dict, result_summary: str) -> None:
+    def record_tool_call(
+        self, tool_name: str, args: dict[str, Any], result_summary: str
+    ) -> None:
         self._tool_calls.append({
             "tool":      tool_name,
             "args":      args,
@@ -354,7 +356,7 @@ class SessionKnowledgeGraph:
         })
 
     def snapshot(self) -> dict[str, Any]:
-        nodes_by_type: dict[str, list[dict]] = defaultdict(list)
+        nodes_by_type: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for node in self._nodes.values():
             nodes_by_type[node.node_type.value].append(node.to_dict())
 
@@ -458,7 +460,9 @@ def auto_index(extractor_fn: Any) -> Any:
 # Entity extractors (unchanged from original)
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def index_pubmed_result(skg, result, kwargs):
+async def index_pubmed_result(
+    skg: SessionKnowledgeGraph, result: dict[str, Any], kwargs: dict[str, Any]
+) -> None:
     for article in result.get("articles", []):
         pmid = article.get("pmid", "")
         if not pmid:
@@ -471,7 +475,9 @@ async def index_pubmed_result(skg, result, kwargs):
         )
 
 
-async def index_gene_result(skg, result, kwargs):
+async def index_gene_result(
+    skg: SessionKnowledgeGraph, result: dict[str, Any], kwargs: dict[str, Any]
+) -> None:
     if "error" in result:
         return
     symbol = result.get("symbol", "")
@@ -485,7 +491,9 @@ async def index_gene_result(skg, result, kwargs):
     )
 
 
-async def index_protein_result(skg, result, kwargs):
+async def index_protein_result(
+    skg: SessionKnowledgeGraph, result: dict[str, Any], kwargs: dict[str, Any]
+) -> None:
     if "error" in result:
         return
     accession = result.get("accession", "")
@@ -506,7 +514,9 @@ async def index_protein_result(skg, result, kwargs):
                                    disease_name, NodeType.DISEASE, source="UniProt")
 
 
-async def index_drug_targets_result(skg, result, kwargs):
+async def index_drug_targets_result(
+    skg: SessionKnowledgeGraph, result: dict[str, Any], kwargs: dict[str, Any]
+) -> None:
     gene = result.get("gene", "")
     if not gene:
         return
@@ -521,7 +531,9 @@ async def index_drug_targets_result(skg, result, kwargs):
         )
 
 
-async def index_disease_associations_result(skg, result, kwargs):
+async def index_disease_associations_result(
+    skg: SessionKnowledgeGraph, result: dict[str, Any], kwargs: dict[str, Any]
+) -> None:
     gene = result.get("gene", "")
     if not gene:
         return
@@ -535,7 +547,9 @@ async def index_disease_associations_result(skg, result, kwargs):
             )
 
 
-async def index_pathways_result(skg, result, kwargs):
+async def index_pathways_result(
+    skg: SessionKnowledgeGraph, result: dict[str, Any], kwargs: dict[str, Any]
+) -> None:
     gene = result.get("gene", "")
     if not gene:
         return
@@ -548,7 +562,9 @@ async def index_pathways_result(skg, result, kwargs):
             )
 
 
-async def index_clinical_trials_result(skg, result, kwargs):
+async def index_clinical_trials_result(
+    skg: SessionKnowledgeGraph, result: dict[str, Any], kwargs: dict[str, Any]
+) -> None:
     for study in result.get("studies", []):
         nct_id = study.get("nct_id", "")
         if not nct_id:
@@ -570,7 +586,9 @@ async def index_clinical_trials_result(skg, result, kwargs):
                 )
 
 
-async def index_variants_result(skg, result, kwargs):
+async def index_variants_result(
+    skg: SessionKnowledgeGraph, result: dict[str, Any], kwargs: dict[str, Any]
+) -> None:
     gene = result.get("gene", "")
     if not gene:
         return
@@ -617,7 +635,7 @@ def _generate_bibtex(sources: set[str]) -> str:
     return "\n\n".join(entries)
 
 
-def _generate_repro_script(tool_calls: list[dict]) -> str:
+def _generate_repro_script(tool_calls: list[dict[str, Any]]) -> str:
     lines = [
         "#!/usr/bin/env python3",
         '"""Auto-generated BioMCP reproducibility script."""',

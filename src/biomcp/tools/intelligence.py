@@ -38,8 +38,7 @@ from typing import Any
 
 from loguru import logger
 
-from biomcp.utils import BioValidator, get_http_client, rate_limited, with_retry
-
+from biomcp.utils import BioValidator
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Known biological pathway grammar — used for reasoning chain parsing
@@ -124,7 +123,7 @@ async def validate_reasoning_chain(
         }
     """
     from biomcp.tools.ncbi import search_pubmed
-    from biomcp.tools.pathways import get_reactome_pathways, get_gene_disease_associations
+    from biomcp.tools.pathways import get_reactome_pathways
 
     t_start = time.monotonic()
     logger.info(f"[ReasoningValidator] Validating chain: {reasoning_chain[:80]}...")
@@ -153,8 +152,6 @@ async def validate_reasoning_chain(
     )
 
     # ── Build verification tasks (parallel) ──────────────────────────────────
-    verification_results: list[dict[str, Any]] = []
-
     async def _verify_step(step: dict, idx: int) -> dict[str, Any]:
         from_e = step["from"]
         to_e = step["to"]
@@ -417,8 +414,7 @@ def _looks_like_gene(token: str) -> bool:
     return (
         2 <= len(t) <= 20
         and bool(re.match(r"^[A-Za-z][A-Za-z0-9\-]*$", t))
-        and not t.lower()
-        in {
+        and t.lower() not in {
             "the",
             "and",
             "or",
@@ -463,7 +459,7 @@ def _infer_missing_steps(
     }
 
     missing: list[dict[str, Any]] = []
-    for i, step in enumerate(verified):
+    for _i, step in enumerate(verified):
         if step.get("confidence", 1.0) < 0.4:
             from_e = step.get("from_entity", "").upper()
             to_e = step.get("to_entity", "").upper()
@@ -524,13 +520,12 @@ async def find_repurposing_candidates(
           evidence_summary
         }
     """
+    from biomcp.tools.advanced import search_clinical_trials
     from biomcp.tools.ncbi import search_pubmed
     from biomcp.tools.pathways import (
         get_drug_targets,
         get_gene_disease_associations,
-        get_compound_info,
     )
-    from biomcp.tools.advanced import search_clinical_trials
 
     t_start = time.monotonic()
     max_candidates = BioValidator.clamp_int(max_candidates, 1, 50, "max_candidates")
@@ -562,11 +557,10 @@ async def find_repurposing_candidates(
         )
 
     raw = await asyncio.gather(*tasks.values(), return_exceptions=True)
-    results = dict(zip(tasks.keys(), raw))
+    results = dict(zip(tasks.keys(), raw, strict=False))
 
     # ── Extract approved drugs with ChEMBL activity ───────────────────────────
     approved_with_activity: list[dict[str, Any]] = []
-    same_target_class: list[dict[str, Any]] = []
 
     if not isinstance(results.get("chembl"), Exception):
         chembl_data = results.get("chembl", {})
@@ -785,7 +779,7 @@ def _generate_combination_opportunities(
     # Add standard-of-care + repurposed candidate
     combos.append(
         {
-            "combination": f"Standard-of-care + repurposed agent",
+            "combination": "Standard-of-care + repurposed agent",
             "rationale": f"Addition of mechanistically distinct agent to existing {disease} SOC regimen.",
             "evidence_base": "Hypothesis — requires preclinical validation",
             "next_step": "Screen top candidates in {disease} cell lines vs SOC combination",
@@ -911,7 +905,6 @@ async def find_research_gaps(
             total_papers = full_result.get("total_found", 0)
             recent_papers = recent_result.get("total_found", 0)
 
-            recent_articles = recent_result.get("articles", [])
             top_articles = full_result.get("articles", [])[:3]
 
             # Extract year distribution from returned articles
@@ -1190,7 +1183,7 @@ def _generate_grant_angles(topic: str, understudied: list, absent: list) -> list
             {
                 "title": f"First characterization of {absent[0]['subtopic'].replace(topic, '').strip()} in {topic}",
                 "grant_type": "NIH R21 (Exploratory/Developmental)",
-                "rationale": f"No existing literature on this intersection — ideal for pilot/exploratory funding.",
+                "rationale": "No existing literature on this intersection — ideal for pilot/exploratory funding.",
                 "sections_to_emphasize": ["Innovation", "Significance"],
             }
         )
@@ -1200,7 +1193,7 @@ def _generate_grant_angles(topic: str, understudied: list, absent: list) -> list
             {
                 "title": f"Mechanistic investigation of {understudied[0]['subtopic'].replace(topic, '').strip()} in {topic}",
                 "grant_type": "NIH R01 (Research Project)",
-                "rationale": f"Limited mechanistic understanding despite clinical relevance.",
+                "rationale": "Limited mechanistic understanding despite clinical relevance.",
                 "sections_to_emphasize": ["Approach", "Innovation"],
             }
         )

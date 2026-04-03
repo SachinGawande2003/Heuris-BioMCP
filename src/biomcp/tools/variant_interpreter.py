@@ -31,9 +31,9 @@ Scientific basis:
   - Landrum et al. 2016 — ClinVar
 
 Clinical disclaimer:
-  This tool is for research and education only. Clinical variant 
+  This tool is for research and education only. Clinical variant
   interpretation requires board-certified clinical geneticist review.
-  Never use automated classification for clinical decisions without 
+  Never use automated classification for clinical decisions without
   expert oversight.
 """
 
@@ -383,7 +383,7 @@ async def _run_vep(gene_symbol: str, variant: str, variant_type: str) -> dict[st
     elif variant_type in ("cdna", "protein"):
         # Search for gene to get RefSeq
         search_resp = await client.get(
-            f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",
             params={"db": "gene", "term": f"{gene_symbol}[Gene Name] AND Homo sapiens[Organism]",
                     "retmax": 1, "retmode": "json"},
         )

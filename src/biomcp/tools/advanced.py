@@ -16,8 +16,8 @@ from typing import Any
 from loguru import logger
 
 from biomcp.utils import (
-    BioValidator,
     _NCBI_SERVICE,
+    BioValidator,
     cached,
     get_http_client,
     ncbi_params,
@@ -101,15 +101,14 @@ async def search_clinical_trials(
         design_mod = proto.get("designModule",            {})
         cond_mod   = proto.get("conditionsModule",        {})
         interv_mod = proto.get("armsInterventionsModule", {})
-        elig_mod   = proto.get("eligibilityModule",       {})
         loc_mod    = proto.get("contactsLocationsModule", {})
         spon_mod   = proto.get("sponsorCollaboratorsModule", {})
 
         nct_id    = id_mod.get("nctId", "")
         locations = list({
-            f"{l.get('city','')}, {l.get('country','')}".strip(", ")
-            for l in (loc_mod.get("locations") or [])[:8]
-            if l.get("city") or l.get("country")
+            f"{location.get('city', '')}, {location.get('country', '')}".strip(", ")
+            for location in (loc_mod.get("locations") or [])[:8]
+            if location.get("city") or location.get("country")
         })
         interventions = [
             {"name": i.get("interventionName", ""), "type": i.get("interventionType", "")}
@@ -160,7 +159,6 @@ async def get_trial_details(nct_id: str) -> dict[str, Any]:
     out_mod = proto.get("outcomesModule",          {})
     arms_mod= proto.get("armsInterventionsModule", {})
     elig_mod= proto.get("eligibilityModule",       {})
-    cont_mod= proto.get("contactsLocationsModule", {})
 
     return {
         "nct_id":   nct_id,
@@ -406,7 +404,9 @@ async def multi_omics_gene_report(gene_symbol: str) -> dict[str, Any]:
     """
     from biomcp.tools.ncbi import get_gene_info, search_pubmed
     from biomcp.tools.pathways import (
-        get_reactome_pathways, get_drug_targets, get_gene_disease_associations,
+        get_drug_targets,
+        get_gene_disease_associations,
+        get_reactome_pathways,
     )
 
     gene_symbol = BioValidator.validate_gene_symbol(gene_symbol)
@@ -427,7 +427,7 @@ async def multi_omics_gene_report(gene_symbol: str) -> dict[str, Any]:
               "disease_associations", "expression", "clinical_trials"]
 
     layers: dict[str, Any] = {}
-    for label, res in zip(labels, results):
+    for label, res in zip(labels, results, strict=False):
         if isinstance(res, Exception):
             logger.warning(f"[Multi-Omics] {label} failed: {res}")
             layers[label] = {"error": str(res), "status": "failed"}

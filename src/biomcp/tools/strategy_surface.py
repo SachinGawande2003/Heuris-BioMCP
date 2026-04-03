@@ -421,7 +421,7 @@ async def _heuristic_biomarker_candidates(disease: str, panel_size: int) -> list
     )
 
     selected: list[dict[str, Any]] = []
-    for gene, info in zip(gene_candidates, info_results):
+    for gene, info in zip(gene_candidates, info_results, strict=False):
         if isinstance(info, Exception) or info.get("error"):
             continue
         selected.append(
@@ -1052,7 +1052,7 @@ async def pharmacogenomics_report(
     )
 
     annotations: list[dict[str, Any]] = []
-    for gene, result in zip(genes_to_query, pgx_results):
+    for gene, result in zip(genes_to_query, pgx_results, strict=False):
         if isinstance(result, Exception):
             annotations.append({"gene": gene, "error": str(result)})
         else:
