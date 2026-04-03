@@ -47,6 +47,21 @@ async def test_get_drug_targets_no_target(mock_http_client, mock_http_response):
 
 
 @pytest.mark.asyncio
+async def test_get_reactome_pathways_handles_transport_error(mock_http_client):
+    with patch("biomcp.tools.pathways.get_http_client", return_value=mock_http_client):
+        from biomcp.tools.pathways import get_reactome_pathways
+        import httpx
+
+        mock_http_client.post = AsyncMock(side_effect=httpx.ConnectTimeout("timed out"))
+        result = await get_reactome_pathways.__wrapped__.__wrapped__.__wrapped__("EGFR")
+
+    assert result["gene"] == "EGFR"
+    assert result["pathways"] == []
+    assert result["total"] == 0
+    assert "error" in result
+
+
+@pytest.mark.asyncio
 async def test_get_drug_targets_handles_chembl_http_error(mock_http_client, mock_http_response):
     error_resp = mock_http_response(status_code=500)
     mock_http_client.get = AsyncMock(return_value=error_resp)

@@ -169,15 +169,33 @@ async def get_reactome_pathways(
     gene_symbol = BioValidator.validate_gene_symbol(gene_symbol)
     client      = await get_http_client()
 
-    map_resp = await client.post(
-        f"{REACTOME_BASE}/identifiers/mapping",
-        content=gene_symbol,
-        headers={"Content-Type": "text/plain", "Accept": "application/json"},
-    )
+    try:
+        map_resp = await client.post(
+            f"{REACTOME_BASE}/identifiers/mapping",
+            content=gene_symbol,
+            headers={"Content-Type": "text/plain", "Accept": "application/json"},
+        )
+    except httpx.HTTPError as exc:
+        return {
+            "gene": gene_symbol,
+            "species_taxid": species,
+            "total": 0,
+            "pathways": [],
+            "error": f"Reactome mapping failed for '{gene_symbol}': {exc}",
+        }
     if map_resp.status_code == 404:
         return {"gene": gene_symbol, "total": 0, "pathways": [],
                 "note": f"'{gene_symbol}' not found in Reactome."}
-    map_resp.raise_for_status()
+    try:
+        map_resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        return {
+            "gene": gene_symbol,
+            "species_taxid": species,
+            "total": 0,
+            "pathways": [],
+            "error": f"Reactome mapping failed for '{gene_symbol}': {exc}",
+        }
 
     pathways: list[dict[str, str]] = []
     for result in map_resp.json().get("results", []):
