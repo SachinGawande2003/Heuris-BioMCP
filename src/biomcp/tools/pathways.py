@@ -34,6 +34,56 @@ REACTOME_ANALYSIS = "https://reactome.org/AnalysisService"
 CHEMBL_BASE       = "https://www.ebi.ac.uk/chembl/api/data"
 OPENTARGETS_GQL   = "https://api.platform.opentargets.org/api/v4/graphql"
 
+KEGG_ORGANISM_TO_NCBI = {
+    "cel": "caenorhabditis elegans",
+    "dme": "drosophila melanogaster",
+    "dre": "danio rerio",
+    "hsa": "homo sapiens",
+    "mmu": "mus musculus",
+    "rno": "rattus norvegicus",
+    "sce": "saccharomyces cerevisiae",
+}
+
+
+def _kegg_organism_name(organism: str) -> str:
+    return KEGG_ORGANISM_TO_NCBI.get(organism.lower(), organism.replace("_", " "))
+
+
+def _parse_kegg_flat_records(raw_text: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for block in raw_text.split("///"):
+        block = block.strip()
+        if not block:
+            continue
+
+        fields: dict[str, str] = {}
+        current_key = ""
+        for line in block.splitlines():
+            key = line[:12].strip()
+            value = line[12:].strip()
+            if key:
+                current_key = key
+                fields[key] = f"{fields.get(key, '')} {value}".strip()
+            elif current_key and value:
+                fields[current_key] = f"{fields[current_key]} {value}".strip()
+
+        entry_id = fields.get("ENTRY", "").split()[0]
+        if not entry_id:
+            continue
+
+        description = fields.get("NAME", "").rstrip(";").strip()
+        records.append({
+            "pathway_id": entry_id,
+            "organism_id": entry_id,
+            "description": description,
+            "summary": fields.get("DESCRIPTION", ""),
+            "category": fields.get("CLASS", ""),
+            "viewer_url": f"https://www.kegg.jp/pathway/{entry_id}",
+            "image_url": f"https://www.kegg.jp/kegg/pathway/{entry_id}/{entry_id}.png",
+        })
+
+    return records
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # KEGG — pathway search
@@ -84,6 +134,138 @@ async def search_pathways(query: str, organism: str = "hsa") -> dict[str, Any]:
         })
 
     return {"query": query, "organism": organism, "total": len(pathways), "pathways": pathways}
+
+
+@cached("kegg")
+@rate_limited("kegg")
+@with_retry(max_attempts=3)
+async def get_kegg_gene_pathways(gene_symbol: str, organism: str = "hsa") -> dict[str, Any]:
+    """
+    Resolve a gene symbol to KEGG pathways that contain that gene.
+
+    This uses KEGG membership links rather than keyword search:
+      gene symbol -> NCBI Gene ID -> KEGG gene ID -> linked pathways
+    """
+    from biomcp.tools.ncbi import get_gene_info
+
+    gene_symbol = BioValidator.validate_gene_symbol(gene_symbol)
+    organism = organism.strip().lower()
+    client = await get_http_client()
+
+    gene_info = await get_gene_info(gene_symbol, organism=_kegg_organism_name(organism))
+    ncbi_gene_id = str(gene_info.get("gene_id", "")).strip()
+    if not ncbi_gene_id:
+        return {
+            "gene": gene_symbol,
+            "organism": organism,
+            "kegg_gene_ids": [],
+            "pathways": [],
+            "total": 0,
+            "error": gene_info.get(
+                "error",
+                f"Could not resolve an NCBI Gene ID for '{gene_symbol}' in '{organism}'.",
+            ),
+        }
+
+    conv_resp = await client.get(
+        f"{KEGG_BASE}/conv/{organism}/ncbi-geneid:{ncbi_gene_id}",
+        headers={"Accept": "text/plain"},
+    )
+    if conv_resp.status_code == 404:
+        return {
+            "gene": gene_symbol,
+            "organism": organism,
+            "ncbi_gene_id": ncbi_gene_id,
+            "kegg_gene_ids": [],
+            "pathways": [],
+            "total": 0,
+            "note": f"No KEGG gene mapping found for '{gene_symbol}' in organism '{organism}'.",
+        }
+    conv_resp.raise_for_status()
+
+    kegg_gene_ids: list[str] = []
+    for line in conv_resp.text.strip().splitlines():
+        if "\t" not in line:
+            continue
+        _, kegg_gene_id = line.split("\t", 1)
+        kegg_gene_id = kegg_gene_id.strip()
+        if kegg_gene_id and kegg_gene_id not in kegg_gene_ids:
+            kegg_gene_ids.append(kegg_gene_id)
+
+    if not kegg_gene_ids:
+        return {
+            "gene": gene_symbol,
+            "organism": organism,
+            "ncbi_gene_id": ncbi_gene_id,
+            "kegg_gene_ids": [],
+            "pathways": [],
+            "total": 0,
+            "note": f"No KEGG gene mapping found for '{gene_symbol}' in organism '{organism}'.",
+        }
+
+    pathway_ids: list[str] = []
+    for kegg_gene_id in kegg_gene_ids:
+        link_resp = await client.get(
+            f"{KEGG_BASE}/link/pathway/{kegg_gene_id}",
+            headers={"Accept": "text/plain"},
+        )
+        if link_resp.status_code == 404:
+            continue
+        link_resp.raise_for_status()
+        for line in link_resp.text.strip().splitlines():
+            if "\t" not in line:
+                continue
+            _, path_ref = line.split("\t", 1)
+            pathway_id = path_ref.replace("path:", "").strip()
+            if pathway_id and pathway_id not in pathway_ids:
+                pathway_ids.append(pathway_id)
+
+    if not pathway_ids:
+        return {
+            "gene": gene_symbol,
+            "organism": organism,
+            "ncbi_gene_id": ncbi_gene_id,
+            "kegg_gene_ids": kegg_gene_ids,
+            "pathways": [],
+            "total": 0,
+        }
+
+    pathway_lookup: dict[str, dict[str, Any]] = {}
+    for i in range(0, len(pathway_ids), 10):
+        batch = pathway_ids[i:i + 10]
+        detail_resp = await client.get(
+            f"{KEGG_BASE}/get/{'+'.join(batch)}",
+            headers={"Accept": "text/plain"},
+        )
+        if detail_resp.status_code != 200:
+            continue
+        for record in _parse_kegg_flat_records(detail_resp.text):
+            pathway_lookup[record["pathway_id"]] = record
+
+    pathways = [
+        pathway_lookup.get(
+            pathway_id,
+            {
+                "pathway_id": pathway_id,
+                "organism_id": pathway_id,
+                "description": pathway_id,
+                "summary": "",
+                "category": "",
+                "viewer_url": f"https://www.kegg.jp/pathway/{pathway_id}",
+                "image_url": f"https://www.kegg.jp/kegg/pathway/{pathway_id}/{pathway_id}.png",
+            },
+        )
+        for pathway_id in pathway_ids
+    ]
+
+    return {
+        "gene": gene_symbol,
+        "organism": organism,
+        "ncbi_gene_id": ncbi_gene_id,
+        "kegg_gene_ids": kegg_gene_ids,
+        "total": len(pathways),
+        "pathways": pathways,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

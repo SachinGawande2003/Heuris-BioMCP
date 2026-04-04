@@ -34,6 +34,44 @@ async def test_search_pathways_parses_kegg(mock_http_client, mock_http_response)
 
 
 @pytest.mark.asyncio
+async def test_get_kegg_gene_pathways_resolves_gene_membership(mock_http_client, mock_http_response):
+    conv_resp = mock_http_response(text="ncbi-geneid:1956\thsa:1956\n")
+    link_resp = mock_http_response(text="hsa:1956\tpath:hsa04010\nhsa:1956\tpath:hsa04012\n")
+    detail_resp = mock_http_response(
+        text=(
+            "ENTRY       hsa04010                    Pathway\n"
+            "NAME        MAPK signaling pathway - Homo sapiens (human)\n"
+            "DESCRIPTION MAPK cascade.\n"
+            "CLASS       Environmental Information Processing; Signal transduction\n"
+            "///\n"
+            "ENTRY       hsa04012                    Pathway\n"
+            "NAME        ErbB signaling pathway - Homo sapiens (human)\n"
+            "DESCRIPTION EGFR family signaling.\n"
+            "CLASS       Environmental Information Processing; Signal transduction\n"
+            "///\n"
+        )
+    )
+    mock_http_client.get = AsyncMock(side_effect=[conv_resp, link_resp, detail_resp])
+
+    async def fake_gene_info(gene_symbol: str, organism: str = "homo sapiens"):
+        return {"gene_id": "1956", "symbol": gene_symbol, "organism": organism}
+
+    with (
+        patch("biomcp.tools.pathways.get_http_client", return_value=mock_http_client),
+        patch("biomcp.tools.ncbi.get_gene_info", side_effect=fake_gene_info),
+    ):
+        from biomcp.tools.pathways import get_kegg_gene_pathways
+
+        result = await get_kegg_gene_pathways.__wrapped__.__wrapped__.__wrapped__("EGFR")
+
+    assert result["ncbi_gene_id"] == "1956"
+    assert result["kegg_gene_ids"] == ["hsa:1956"]
+    assert result["total"] == 2
+    assert result["pathways"][0]["pathway_id"] == "hsa04010"
+    assert result["pathways"][1]["description"].startswith("ErbB signaling pathway")
+
+
+@pytest.mark.asyncio
 async def test_get_drug_targets_no_target(mock_http_client, mock_http_response):
     """get_drug_targets should handle empty ChEMBL target search gracefully."""
     empty_resp = mock_http_response(json_data={"targets": []})
@@ -182,6 +220,16 @@ async def test_kegg_pathways_live():
 
     result = await search_pathways("apoptosis")
     assert result["total"] > 0
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_kegg_gene_pathways_live():
+    from biomcp.tools.pathways import get_kegg_gene_pathways
+
+    result = await get_kegg_gene_pathways("EGFR")
+    assert result["total"] > 1
+    assert any(pathway["pathway_id"] == "hsa04010" for pathway in result["pathways"])
 
 
 @pytest.mark.integration

@@ -507,7 +507,12 @@ async def pathway_analysis(
     pathway_id: str = "",
     organism: str = "hsa",
 ) -> dict[str, Any]:
-    from biomcp.tools.pathways import get_pathway_genes, get_reactome_pathways, search_pathways
+    from biomcp.tools.pathways import (
+        get_kegg_gene_pathways,
+        get_pathway_genes,
+        get_reactome_pathways,
+        search_pathways,
+    )
 
     action = action.lower()
     db = db.lower()
@@ -561,7 +566,7 @@ async def pathway_analysis(
             raise ValueError("gene_symbol is required when action='gene_context'.")
         results = await asyncio.gather(
             get_reactome_pathways(gene_symbol),
-            search_pathways(gene_symbol, organism=organism),
+            get_kegg_gene_pathways(gene_symbol, organism=organism),
             return_exceptions=True,
         )
         return {

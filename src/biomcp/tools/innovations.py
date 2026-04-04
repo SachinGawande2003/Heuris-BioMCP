@@ -199,7 +199,7 @@ async def compute_pathway_enrichment(
     gene_set = {BioValidator.validate_gene_symbol(g) for g in gene_list}
     n_query  = len(gene_set)
 
-    from biomcp.tools.pathways import get_reactome_pathways, search_pathways
+    from biomcp.tools.pathways import get_kegg_gene_pathways, get_reactome_pathways
 
     # Gather pathway-gene sets
     pathway_gene_sets: list[dict[str, Any]] = []
@@ -208,7 +208,7 @@ async def compute_pathway_enrichment(
         # Get KEGG pathways for each gene and accumulate
         async def _kegg_for_gene(gene: str) -> list[dict]:
             try:
-                r = await search_pathways(gene)
+                r = await get_kegg_gene_pathways(gene)
                 return r.get("pathways", [])
             except Exception:
                 return []

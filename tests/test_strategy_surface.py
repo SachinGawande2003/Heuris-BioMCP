@@ -8,7 +8,7 @@ from biomcp.utils import get_cache
 
 @pytest.fixture(autouse=True)
 def clear_strategy_caches() -> None:
-    for namespace in ("default", "uniprot", "reactome", "fda", "pharmgkb", "omim", "ensembl"):
+    for namespace in ("default", "uniprot", "reactome", "kegg", "fda", "pharmgkb", "omim", "ensembl"):
         get_cache(namespace).clear()
 
 
@@ -94,6 +94,35 @@ async def test_find_protein_combines_uniprot_and_pdb(monkeypatch: pytest.MonkeyP
     result = await strategy_surface.find_protein(query="TP53", source="both", max_results=3)
     assert result["uniprot_results"]["proteins"][0]["accession"] == "P04637"
     assert result["pdb_results"]["structures"][0]["pdb_id"] == "1TUP"
+
+
+@pytest.mark.asyncio
+async def test_pathway_analysis_gene_context_uses_kegg_gene_membership(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import biomcp.tools.pathways as pathways
+
+    async def fake_reactome(gene_symbol: str):
+        return {"gene": gene_symbol, "total": 2, "pathways": [{"reactome_id": "R-HSA-177929"}]}
+
+    async def fake_kegg_gene_pathways(gene_symbol: str, organism: str = "hsa"):
+        return {
+            "gene": gene_symbol,
+            "organism": organism,
+            "ncbi_gene_id": "1956",
+            "kegg_gene_ids": ["hsa:1956"],
+            "total": 3,
+            "pathways": [{"pathway_id": "hsa04010"}],
+        }
+
+    monkeypatch.setattr(pathways, "get_reactome_pathways", fake_reactome)
+    monkeypatch.setattr(pathways, "get_kegg_gene_pathways", fake_kegg_gene_pathways)
+
+    result = await strategy_surface.pathway_analysis(action="gene_context", gene_symbol="EGFR")
+
+    assert result["reactome"]["total"] == 2
+    assert result["kegg"]["ncbi_gene_id"] == "1956"
+    assert result["kegg"]["pathways"][0]["pathway_id"] == "hsa04010"
 
 
 @pytest.mark.asyncio
