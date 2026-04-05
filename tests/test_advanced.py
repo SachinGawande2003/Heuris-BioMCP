@@ -179,6 +179,59 @@ async def test_query_neuroimaging_handles_failure_gracefully(mock_http_client, m
     assert "recommended_tools" in result
 
 
+@pytest.mark.asyncio
+async def test_multi_omics_gene_report_handles_partial_layer_failures():
+    literature = {
+        "total_found": 2,
+        "articles": [
+            {
+                "pmid": "4001",
+                "title": "MYC review",
+                "year": 2025,
+                "journal": "Cell",
+            }
+        ],
+    }
+
+    with (
+        patch("biomcp.tools.ncbi.get_gene_info", new=AsyncMock(return_value={"symbol": "MYC"})),
+        patch("biomcp.tools.ncbi.search_pubmed", new=AsyncMock(return_value=literature)),
+        patch(
+            "biomcp.tools.pathways.get_reactome_pathways",
+            new=AsyncMock(side_effect=RuntimeError("Reactome timeout")),
+        ),
+        patch(
+            "biomcp.tools.pathways.get_drug_targets",
+            new=AsyncMock(return_value={"drugs": [{"name": "DrugX"}]}),
+        ),
+        patch(
+            "biomcp.tools.pathways.get_gene_disease_associations",
+            new=AsyncMock(return_value={"associations": [{"disease_name": "Lymphoma"}]}),
+        ),
+        patch(
+            "biomcp.tools.advanced.search_gene_expression",
+            new=AsyncMock(side_effect=ValueError("GEO offline")),
+        ),
+        patch(
+            "biomcp.tools.advanced.search_clinical_trials",
+            new=AsyncMock(return_value={"studies": [{"nct_id": "NCT0001"}]}),
+        ),
+    ):
+        from biomcp.tools.advanced import multi_omics_gene_report
+
+        result = await multi_omics_gene_report.__wrapped__.__wrapped__("MYC")
+
+    assert result["gene"] == "MYC"
+    assert result["layers"]["genomics"]["symbol"] == "MYC"
+    assert result["layers"]["literature"]["total_publications"] == 2
+    assert result["layers"]["literature"]["recent_papers"][0]["pmid"] == "4001"
+    assert result["layers"]["reactome"]["status"] == "failed"
+    assert result["layers"]["reactome"]["error"] == "Reactome timeout"
+    assert result["layers"]["expression"]["status"] == "failed"
+    assert result["layers"]["clinical_trials"]["studies"][0]["nct_id"] == "NCT0001"
+    assert "status: failed" in result["note"]
+
+
 # ── Integration ──────────────────────────────────────────────────────────────
 
 @pytest.mark.integration
