@@ -21,7 +21,6 @@ from biomcp.utils import (
     with_retry,
 )
 
-_BIOGRID_KEY  = os.getenv("BIOGRID_API_KEY", "")
 _BIOGRID_BASE = "https://webservice.thebiogrid.org"
 _ORPHANET_BASE= "https://api.orphacode.org/EN/ClinicalEntity"
 _GDC_BASE     = "https://api.gdc.cancer.gov"
@@ -47,6 +46,13 @@ async def get_biogrid_interactions(
     """Retrieve curated protein-protein interactions from BioGRID."""
     gene_symbol = BioValidator.validate_gene_symbol(gene_symbol)
     max_results = BioValidator.clamp_int(max_results, 1, 100, "max_results")
+    biogrid_key = os.getenv("BIOGRID_API_KEY", "").strip()
+    if not biogrid_key:
+        return {
+            "gene": gene_symbol,
+            "error": "BIOGRID_API_KEY is not configured. Set BIOGRID_API_KEY to query BioGRID.",
+            "interactions": [],
+        }
     client      = await get_http_client()
 
     params: dict[str, Any] = {
@@ -55,7 +61,7 @@ async def get_biogrid_interactions(
         "includeEvidence": True, "includePubmedId": True,
         "includeOfficialSymbol": True, "taxId": 9606,
         "max": max_results, "format": "json",
-        "accesskey": _BIOGRID_KEY or "BIOGRID-7678",
+        "accesskey": biogrid_key,
     }
 
     resp = await client.get(f"{_BIOGRID_BASE}/interactions/", params=params,
