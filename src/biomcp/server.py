@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import importlib
 import json
 import os
 import sys
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -33,6 +35,9 @@ SSE_PATH = "/sse"
 MESSAGE_PATH = "/messages/"
 DEFAULT_SERVER_WEBSITE_URL = "https://heuris-biomcp.onrender.com"
 LOGO_ROUTE_PATH = "/logo.jpeg"
+
+_DISPATCH_TABLE: dict[str, Callable[..., Any]] | None = None
+_TOOL_MODULES: dict[str, Any] | None = None
 
 CAPABILITY_CONFIG: dict[str, dict[str, Any]] = {
     "core_server": {
@@ -1678,7 +1683,7 @@ async def _session_workflow(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-async def _raw_dispatch(name: str, args: dict[str, Any]) -> Any:
+async def _raw_dispatch_legacy(name: str, args: dict[str, Any]) -> Any:
     """Raw dispatcher returning Python objects. Used by the query planner."""
     # ── Core tool imports ──────────────────────────────────────────────────────
     from biomcp.tools.advanced import (
@@ -1820,7 +1825,9 @@ async def _raw_dispatch(name: str, args: dict[str, Any]) -> Any:
         # Advanced
         "multi_omics_gene_report": multi_omics_gene_report,
         "query_neuroimaging_datasets": query_neuroimaging_datasets,
-        "generate_research_hypothesis": _generate_research_hypothesis,
+        "generate_research_hypothesis": _module_dispatch(
+            sys.modules[__name__], "_generate_research_hypothesis"
+        ),
         # NVIDIA NIM
         "predict_structure_boltz2": boltz2_workflow,
         "generate_dna_evo2": evo2_workflow,
@@ -1842,12 +1849,20 @@ async def _raw_dispatch(name: str, args: dict[str, Any]) -> Any:
         "suggest_cell_lines": suggest_cell_lines,
         "estimate_statistical_power": estimate_statistical_power,
         # Session Intelligence
-        "session": _session_workflow,
-        "resolve_entity": _resolve_entity,
-        "get_session_knowledge_graph": _get_session_knowledge_graph,
-        "find_biological_connections": _find_biological_connections,
-        "export_research_session": _export_research_session,
-        "plan_and_execute_research": _plan_and_execute_research,
+        "session": _module_dispatch(sys.modules[__name__], "_session_workflow"),
+        "resolve_entity": _module_dispatch(sys.modules[__name__], "_resolve_entity"),
+        "get_session_knowledge_graph": _module_dispatch(
+            sys.modules[__name__], "_get_session_knowledge_graph"
+        ),
+        "find_biological_connections": _module_dispatch(
+            sys.modules[__name__], "_find_biological_connections"
+        ),
+        "export_research_session": _module_dispatch(
+            sys.modules[__name__], "_export_research_session"
+        ),
+        "plan_and_execute_research": _module_dispatch(
+            sys.modules[__name__], "_plan_and_execute_research"
+        ),
         # Intelligence Layer
         "validate_reasoning_chain": validate_reasoning_chain,
         "find_repurposing_candidates": find_repurposing_candidates,
@@ -1904,6 +1919,176 @@ async def _raw_dispatch(name: str, args: dict[str, Any]) -> Any:
     return await DISPATCH[name](**args)
 
 
+def _module_dispatch(module: Any, attr_name: str) -> Callable[..., Any]:
+    async def _call(**kwargs: Any) -> Any:
+        return await getattr(module, attr_name)(**kwargs)
+
+    return _call
+
+
+def _build_tool_modules() -> dict[str, Any]:
+    return {
+        "advanced": importlib.import_module("biomcp.tools.advanced"),
+        "crispr": importlib.import_module("biomcp.tools.crispr_tools"),
+        "databases": importlib.import_module("biomcp.tools.databases"),
+        "drug_safety": importlib.import_module("biomcp.tools.drug_safety"),
+        "extended_databases": importlib.import_module("biomcp.tools.extended_databases"),
+        "innovations": importlib.import_module("biomcp.tools.innovations"),
+        "intelligence": importlib.import_module("biomcp.tools.intelligence"),
+        "ncbi": importlib.import_module("biomcp.tools.ncbi"),
+        "nvidia_nim": importlib.import_module("biomcp.tools.nvidia_nim"),
+        "pathways": importlib.import_module("biomcp.tools.pathways"),
+        "proteins": importlib.import_module("biomcp.tools.proteins"),
+        "protocol_generator": importlib.import_module("biomcp.tools.protocol_generator"),
+        "strategy_surface": importlib.import_module("biomcp.tools.strategy_surface"),
+        "variant_interpreter": importlib.import_module("biomcp.tools.variant_interpreter"),
+        "verify": importlib.import_module("biomcp.tools.verify"),
+    }
+
+
+def _get_tool_modules() -> dict[str, Any]:
+    global _TOOL_MODULES
+    if _TOOL_MODULES is None:
+        _TOOL_MODULES = _build_tool_modules()
+        logger.debug(f"Tool modules initialized with {len(_TOOL_MODULES)} modules")
+    return _TOOL_MODULES
+
+
+def _build_dispatch_table() -> dict[str, Callable[..., Any]]:
+    tool_modules = _get_tool_modules()
+    advanced_tools = tool_modules["advanced"]
+    crispr_tools = tool_modules["crispr"]
+    database_tools = tool_modules["databases"]
+    drug_safety_tools = tool_modules["drug_safety"]
+    extended_database_tools = tool_modules["extended_databases"]
+    innovation_tools = tool_modules["innovations"]
+    intelligence_tools = tool_modules["intelligence"]
+    ncbi_tools = tool_modules["ncbi"]
+    nvidia_nim_tools = tool_modules["nvidia_nim"]
+    pathway_tools = tool_modules["pathways"]
+    protein_tools = tool_modules["proteins"]
+    protocol_tools = tool_modules["protocol_generator"]
+    strategy_tools = tool_modules["strategy_surface"]
+    variant_tools = tool_modules["variant_interpreter"]
+    verification_tools = tool_modules["verify"]
+
+    return {
+        "search_pubmed": _module_dispatch(ncbi_tools, "search_pubmed"),
+        "get_gene_info": _module_dispatch(ncbi_tools, "get_gene_info"),
+        "run_blast": _module_dispatch(ncbi_tools, "run_blast"),
+        "get_protein_info": _module_dispatch(protein_tools, "get_protein_info"),
+        "search_proteins": _module_dispatch(protein_tools, "search_proteins"),
+        "get_alphafold_structure": _module_dispatch(protein_tools, "get_alphafold_structure"),
+        "search_pdb_structures": _module_dispatch(protein_tools, "search_pdb_structures"),
+        "find_protein": _module_dispatch(strategy_tools, "find_protein"),
+        "search_pathways": _module_dispatch(pathway_tools, "search_pathways"),
+        "get_pathway_genes": _module_dispatch(pathway_tools, "get_pathway_genes"),
+        "get_reactome_pathways": _module_dispatch(pathway_tools, "get_reactome_pathways"),
+        "pathway_analysis": _module_dispatch(strategy_tools, "pathway_analysis"),
+        "get_drug_targets": _module_dispatch(pathway_tools, "get_drug_targets"),
+        "get_compound_info": _module_dispatch(pathway_tools, "get_compound_info"),
+        "get_gene_disease_associations": _module_dispatch(pathway_tools, "get_gene_disease_associations"),
+        "get_gene_variants": _module_dispatch(advanced_tools, "get_gene_variants"),
+        "search_gene_expression": _module_dispatch(advanced_tools, "search_gene_expression"),
+        "search_scrna_datasets": _module_dispatch(advanced_tools, "search_scrna_datasets"),
+        "search_clinical_trials": _module_dispatch(advanced_tools, "search_clinical_trials"),
+        "get_trial_details": _module_dispatch(advanced_tools, "get_trial_details"),
+        "multi_omics_gene_report": _module_dispatch(advanced_tools, "multi_omics_gene_report"),
+        "query_neuroimaging_datasets": _module_dispatch(advanced_tools, "query_neuroimaging_datasets"),
+        "generate_research_hypothesis": _module_dispatch(
+            sys.modules[__name__], "_generate_research_hypothesis"
+        ),
+        "predict_structure_boltz2": _module_dispatch(strategy_tools, "boltz2_workflow"),
+        "generate_dna_evo2": _module_dispatch(strategy_tools, "evo2_workflow"),
+        "score_sequence_evo2": _module_dispatch(nvidia_nim_tools, "score_sequence_evo2"),
+        "design_protein_ligand": _module_dispatch(nvidia_nim_tools, "design_protein_ligand"),
+        "get_omim_gene_diseases": _module_dispatch(database_tools, "get_omim_gene_diseases"),
+        "get_string_interactions": _module_dispatch(database_tools, "get_string_interactions"),
+        "get_gtex_expression": _module_dispatch(database_tools, "get_gtex_expression"),
+        "search_cbio_mutations": _module_dispatch(database_tools, "search_cbio_mutations"),
+        "search_gwas_catalog": _module_dispatch(database_tools, "search_gwas_catalog"),
+        "get_disgenet_associations": _module_dispatch(database_tools, "get_disgenet_associations"),
+        "get_pharmgkb_variants": _module_dispatch(database_tools, "get_pharmgkb_variants"),
+        "verify_biological_claim": _module_dispatch(verification_tools, "verify_biological_claim"),
+        "detect_database_conflicts": _module_dispatch(verification_tools, "detect_database_conflicts"),
+        "generate_experimental_protocol": _module_dispatch(protocol_tools, "generate_experimental_protocol"),
+        "suggest_cell_lines": _module_dispatch(protocol_tools, "suggest_cell_lines"),
+        "estimate_statistical_power": _module_dispatch(protocol_tools, "estimate_statistical_power"),
+        "session": _module_dispatch(sys.modules[__name__], "_session_workflow"),
+        "resolve_entity": _module_dispatch(sys.modules[__name__], "_resolve_entity"),
+        "get_session_knowledge_graph": _module_dispatch(
+            sys.modules[__name__], "_get_session_knowledge_graph"
+        ),
+        "find_biological_connections": _module_dispatch(
+            sys.modules[__name__], "_find_biological_connections"
+        ),
+        "export_research_session": _module_dispatch(
+            sys.modules[__name__], "_export_research_session"
+        ),
+        "plan_and_execute_research": _module_dispatch(
+            sys.modules[__name__], "_plan_and_execute_research"
+        ),
+        "validate_reasoning_chain": _module_dispatch(intelligence_tools, "validate_reasoning_chain"),
+        "find_repurposing_candidates": _module_dispatch(intelligence_tools, "find_repurposing_candidates"),
+        "find_research_gaps": _module_dispatch(intelligence_tools, "find_research_gaps"),
+        "get_biogrid_interactions": _module_dispatch(extended_database_tools, "get_biogrid_interactions"),
+        "search_orphan_diseases": _module_dispatch(extended_database_tools, "search_orphan_diseases"),
+        "get_tcga_expression": _module_dispatch(extended_database_tools, "get_tcga_expression"),
+        "search_cellmarker": _module_dispatch(extended_database_tools, "search_cellmarker"),
+        "get_encode_regulatory": _module_dispatch(extended_database_tools, "get_encode_regulatory"),
+        "search_metabolomics": _module_dispatch(extended_database_tools, "search_metabolomics"),
+        "get_ucsc_splice_variants": _module_dispatch(extended_database_tools, "get_ucsc_splice_variants"),
+        "crispr_analysis": _module_dispatch(strategy_tools, "crispr_analysis"),
+        "design_crispr_guides": _module_dispatch(crispr_tools, "design_crispr_guides"),
+        "score_guide_efficiency": _module_dispatch(crispr_tools, "score_guide_efficiency"),
+        "predict_off_target_sites": _module_dispatch(crispr_tools, "predict_off_target_sites"),
+        "design_base_editor_guides": _module_dispatch(crispr_tools, "design_base_editor_guides"),
+        "get_crispr_repair_outcomes": _module_dispatch(crispr_tools, "get_crispr_repair_outcomes"),
+        "drug_safety": _module_dispatch(strategy_tools, "drug_safety"),
+        "query_adverse_events": _module_dispatch(drug_safety_tools, "query_adverse_events"),
+        "analyze_safety_signals": _module_dispatch(drug_safety_tools, "analyze_safety_signals"),
+        "get_drug_label_warnings": _module_dispatch(drug_safety_tools, "get_drug_label_warnings"),
+        "compare_drug_safety": _module_dispatch(drug_safety_tools, "compare_drug_safety"),
+        "variant_analysis": _module_dispatch(strategy_tools, "variant_analysis"),
+        "classify_variant": _module_dispatch(variant_tools, "classify_variant"),
+        "get_population_frequency": _module_dispatch(variant_tools, "get_population_frequency"),
+        "lookup_clinvar_variant": _module_dispatch(variant_tools, "lookup_clinvar_variant"),
+        "bulk_gene_analysis": _module_dispatch(innovation_tools, "bulk_gene_analysis"),
+        "compute_pathway_enrichment": _module_dispatch(innovation_tools, "compute_pathway_enrichment"),
+        "search_biorxiv": _module_dispatch(innovation_tools, "search_biorxiv"),
+        "get_protein_domain_structure": _module_dispatch(innovation_tools, "get_protein_domain_structure"),
+        "analyze_coexpression": _module_dispatch(innovation_tools, "analyze_coexpression"),
+        "get_cancer_hotspots": _module_dispatch(innovation_tools, "get_cancer_hotspots"),
+        "predict_splice_impact": _module_dispatch(innovation_tools, "predict_splice_impact"),
+        "drug_interaction_checker": _module_dispatch(strategy_tools, "drug_interaction_checker"),
+        "protein_binding_pocket": _module_dispatch(strategy_tools, "protein_binding_pocket"),
+        "biomarker_panel_design": _module_dispatch(strategy_tools, "biomarker_panel_design"),
+        "pharmacogenomics_report": _module_dispatch(strategy_tools, "pharmacogenomics_report"),
+        "protein_family_analysis": _module_dispatch(strategy_tools, "protein_family_analysis"),
+        "network_enrichment": _module_dispatch(strategy_tools, "network_enrichment"),
+        "rnaseq_deconvolution": _module_dispatch(strategy_tools, "rnaseq_deconvolution"),
+        "structural_similarity": _module_dispatch(strategy_tools, "structural_similarity"),
+        "rare_disease_diagnosis": _module_dispatch(strategy_tools, "rare_disease_diagnosis"),
+        "genome_browser_snapshot": _module_dispatch(strategy_tools, "genome_browser_snapshot"),
+    }
+
+
+def _get_dispatch_table() -> dict[str, Callable[..., Any]]:
+    global _DISPATCH_TABLE
+    if _DISPATCH_TABLE is None:
+        _DISPATCH_TABLE = _build_dispatch_table()
+        logger.debug(f"Dispatch table initialized with {len(_DISPATCH_TABLE)} handlers")
+    return _DISPATCH_TABLE
+
+
+async def _raw_dispatch(name: str, args: dict[str, Any]) -> Any:
+    """Raw dispatcher returning Python objects. Used by the query planner."""
+    dispatch = _get_dispatch_table()
+    if name not in dispatch:
+        raise ValueError(f"Unknown tool '{name}'")
+    return await dispatch[name](**args)
+
+
 async def _dispatch(name: str, args: dict[str, Any]) -> str:
     """MCP-facing dispatcher — wraps results in JSON envelopes."""
     try:
@@ -1924,6 +2109,8 @@ async def _dispatch(name: str, args: dict[str, Any]) -> str:
 
 
 def create_server() -> Server:
+    _get_dispatch_table()
+
     server_kwargs: dict[str, Any] = {
         "instructions": (
             "Heuris-BioMCP — Connect ChatGPT, Claude, and other MCP clients "

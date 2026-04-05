@@ -296,6 +296,44 @@ class TestDispatchSmoke:
         assert "traceback" not in result
 
 
+class TestDispatchInitialization:
+    def test_dispatch_table_is_built_once(self, monkeypatch: pytest.MonkeyPatch):
+        build_count = 0
+        stub_table = {"search_pubmed": object()}
+
+        def _fake_build_dispatch_table():
+            nonlocal build_count
+            build_count += 1
+            return stub_table
+
+        monkeypatch.setattr(server_module, "_DISPATCH_TABLE", None)
+        monkeypatch.setattr(server_module, "_build_dispatch_table", _fake_build_dispatch_table)
+
+        first = server_module._get_dispatch_table()
+        second = server_module._get_dispatch_table()
+
+        assert build_count == 1
+        assert first is stub_table
+        assert second is stub_table
+
+    def test_create_server_warms_dispatch_table(self, monkeypatch: pytest.MonkeyPatch):
+        build_count = 0
+        stub_table = {"search_pubmed": object()}
+
+        def _fake_build_dispatch_table():
+            nonlocal build_count
+            build_count += 1
+            return stub_table
+
+        monkeypatch.setattr(server_module, "_DISPATCH_TABLE", None)
+        monkeypatch.setattr(server_module, "_build_dispatch_table", _fake_build_dispatch_table)
+
+        create_server()
+
+        assert build_count == 1
+        assert server_module._DISPATCH_TABLE is stub_table
+
+
 class TestServerBranding:
     def test_logo_asset_is_resolvable(self):
         logo_path = _resolve_logo_path()
