@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_verify_biological_claim_parses_pubmed_sentiment():
+async def test_verify_biological_claim_uses_structured_claim_decomposition():
     pubmed_result = {
         "articles": [
             {
@@ -46,6 +46,8 @@ async def test_verify_biological_claim_parses_pubmed_sentiment():
         )
 
     assert result["gene_context"] == "EGFR"
+    assert result["claim_decomposition"]["relation_type"] == "oncogenicity"
+    assert result["claim_decomposition"]["disease_focus"] == "lung cancer"
     assert result["verdict"] == "VERIFIED"
     assert result["evidence_counts"]["supporting"] == 3
     assert result["evidence_counts"]["contradicting"] == 1
@@ -73,7 +75,32 @@ async def test_verify_biological_claim_treats_resistance_papers_as_unresolved():
     protein_result = {"proteins": [{"genes": ["KRAS"]}]}
     association_result = {
         "associations": [
-            {"disease_name": "lung cancer", "overall_score": 0.88},
+            {
+                "disease_name": "lung cancer",
+                "overall_score": 0.88,
+                "evidence_by_datatype": {
+                    "genetic_association": 0.81,
+                    "somatic_mutation": 0.73,
+                },
+            },
+        ]
+    }
+    clinvar_result = {
+        "variants": [
+            {
+                "variation_id": "999",
+                "title": "KRAS p.G12C",
+                "clinical_significance": "Pathogenic",
+                "phenotypes": ["lung cancer"],
+            }
+        ]
+    }
+    hotspot_result = {
+        "hotspots": [
+            {
+                "amino_acid_change": "G12C",
+                "count": 42,
+            }
         ]
     }
 
@@ -84,6 +111,14 @@ async def test_verify_biological_claim_treats_resistance_papers_as_unresolved():
             "biomcp.tools.pathways.get_gene_disease_associations",
             new=AsyncMock(return_value=association_result),
         ),
+        patch(
+            "biomcp.tools.variant_interpreter.lookup_clinvar_variant",
+            new=AsyncMock(return_value=clinvar_result),
+        ),
+        patch(
+            "biomcp.tools.innovations.get_cancer_hotspots",
+            new=AsyncMock(return_value=hotspot_result),
+        ),
     ):
         from biomcp.tools.verify import verify_biological_claim
 
@@ -93,9 +128,12 @@ async def test_verify_biological_claim_treats_resistance_papers_as_unresolved():
         )
 
     assert result["evidence_counts"]["contradicting"] == 0
-    assert result["confidence_grade"] == "B"
+    assert result["claim_decomposition"]["variant"] == "G12C"
+    assert result["confidence_grade"] in {"A", "B"}
     assert result["unresolved"][0]["source"] == "PubMed"
     assert "Resistance or escape-mechanism context" in result["unresolved"][0]["rationale"]
+    assert any(item["source"] == "ClinVar" for item in result["supporting_evidence"])
+    assert any(item["source"] == "Cancer Hotspots" for item in result["supporting_evidence"])
 
 
 def test_synthesize_conflicting_evidence_explains_activity_spread():

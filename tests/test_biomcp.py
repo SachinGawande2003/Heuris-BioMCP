@@ -187,7 +187,9 @@ class TestFormatters:
         out = json.loads(format_success("my_tool", {"key": "value"}))
         assert out["status"] == "success"
         assert out["tool"] == "my_tool"
-        assert out["data"] == {"key": "value"}
+        assert out["data"]["key"] == "value"
+        assert "_meta" in out["data"]
+        assert 0.0 <= out["data"]["_meta"]["confidence"] <= 1.0
 
     def test_format_success_strips_cache_metadata(self):
         import json
@@ -207,6 +209,7 @@ class TestFormatters:
 
         assert "_cache" not in out["data"]
         assert "_cache" not in out["data"]["nested"]
+        assert "_meta" in out["data"]
 
     def test_format_error_has_status(self):
         import json

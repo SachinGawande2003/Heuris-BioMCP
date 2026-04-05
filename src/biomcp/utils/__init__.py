@@ -21,6 +21,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 import time
 from collections import defaultdict
 from collections.abc import Callable
@@ -171,6 +172,7 @@ CACHE_TTLS: dict[str, int] = {
     "clinical_trials": 1_800,  # 30 m — trial status can change
     "expression": 3_600,  # 1 h
     "drug_target": 3_600,  # 1 h
+    "chembl_registry": 604_800,  # 7 d — target registry is stable and reused heavily
     "blast": 1_800,  # 30 m
     "reactome": 43_200,  # 12 h
     "fda": 3_600,  # 1 h â€” FAERS / labels update frequently enough to stay short
@@ -264,6 +266,162 @@ def strip_cache_metadata(payload: Any) -> Any:
     if isinstance(payload, list):
         return [strip_cache_metadata(item) for item in payload]
     return payload
+
+
+_REFERENCE_TOOL_QUALITY = {
+    "get_gene_info": 0.92,
+    "get_protein_info": 0.94,
+    "get_alphafold_structure": 0.88,
+    "get_drug_targets": 0.84,
+    "get_gene_disease_associations": 0.86,
+    "search_clinical_trials": 0.91,
+    "multi_omics_gene_report": 0.89,
+    "verify_biological_claim": 0.9,
+    "run_blast": 0.83,
+    "search_pubmed": 0.78,
+}
+
+
+def _extract_year(value: Any) -> int | None:
+    if isinstance(value, int):
+        return value if 1900 <= value <= 2100 else None
+    if isinstance(value, str):
+        match = re.search(r"(19|20)\d{2}", value)
+        if match:
+            return int(match.group(0))
+    return None
+
+
+def _collect_payload_years(payload: Any) -> list[int]:
+    years: list[int] = []
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key in {"year", "document_year", "last_updated", "posted_date"}:
+                year = _extract_year(value)
+                if year is not None:
+                    years.append(year)
+            years.extend(_collect_payload_years(value))
+    elif isinstance(payload, list):
+        for item in payload:
+            years.extend(_collect_payload_years(item))
+    return years
+
+
+def _normalize_confidence_value(value: Any) -> float | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return max(0.0, min(1.0, float(value)))
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"high", "very high"}:
+            return 0.9
+        if normalized == "medium":
+            return 0.7
+        if normalized in {"low", "very low"}:
+            return 0.45
+    return None
+
+
+def _estimate_recency_score(tool_name: str, payload: dict[str, Any]) -> float:
+    years = _collect_payload_years(payload)
+    if not years:
+        if tool_name in {"get_gene_info", "get_protein_info", "get_alphafold_structure"}:
+            return 0.82
+        return 0.75
+
+    newest_year = max(years)
+    age_years = max(time.gmtime().tm_year - newest_year, 0)
+    if age_years <= 1:
+        return 0.98
+    if age_years <= 3:
+        return 0.9
+    if age_years <= 5:
+        return 0.82
+    return 0.7
+
+
+def _estimate_cross_validation_score(payload: dict[str, Any]) -> float:
+    if "conflicts_found" in payload:
+        try:
+            conflicts_found = int(payload.get("conflicts_found", 0) or 0)
+        except (TypeError, ValueError):
+            conflicts_found = 0
+        return max(0.35, 0.9 - conflicts_found * 0.15)
+
+    if isinstance(payload.get("data_sources"), list):
+        return min(1.0, 0.6 + 0.05 * len(payload["data_sources"]))
+
+    if isinstance(payload.get("databases_queried"), list):
+        return min(1.0, 0.58 + 0.06 * len(payload["databases_queried"]))
+
+    evidence_counts = payload.get("evidence_counts")
+    if isinstance(evidence_counts, dict):
+        supporting = int(evidence_counts.get("supporting", 0) or 0)
+        contradicting = int(evidence_counts.get("contradicting", 0) or 0)
+        return min(0.98, 0.55 + 0.07 * (supporting + contradicting))
+
+    for key in ("associations", "pathways", "drugs", "studies", "datasets", "variants", "proteins"):
+        values = payload.get(key)
+        if isinstance(values, list):
+            if not values:
+                return 0.45
+            return min(0.9, 0.62 + 0.03 * min(len(values), 8))
+
+    return 0.65
+
+
+def _estimate_response_confidence(
+    tool_name: str,
+    payload: dict[str, Any],
+) -> tuple[float, dict[str, float]]:
+    if "error" in payload or payload.get("status") == "failed":
+        confidence = 0.1 if "error" in payload else 0.18
+        factors = {
+            "source_quality": 0.35,
+            "recency": 0.5,
+            "cross_validation": 0.2,
+        }
+        return confidence, factors
+
+    source_quality = _REFERENCE_TOOL_QUALITY.get(tool_name, 0.76)
+    recency = _estimate_recency_score(tool_name, payload)
+    cross_validation = _estimate_cross_validation_score(payload)
+
+    estimated = (
+        source_quality * 0.45
+        + recency * 0.2
+        + cross_validation * 0.35
+    )
+
+    explicit_confidence = (
+        _normalize_confidence_value(payload.get("confidence_score"))
+        or _normalize_confidence_value(payload.get("overall_confidence"))
+        or _normalize_confidence_value(payload.get("consistency_score"))
+        or _normalize_confidence_value(payload.get("confidence"))
+    )
+    if explicit_confidence is not None:
+        estimated = explicit_confidence * 0.65 + estimated * 0.35
+
+    factors = {
+        "source_quality": round(source_quality, 3),
+        "recency": round(recency, 3),
+        "cross_validation": round(cross_validation, 3),
+    }
+    return round(max(0.0, min(1.0, estimated)), 3), factors
+
+
+def attach_response_meta(tool_name: str, data: Any) -> Any:
+    if not isinstance(data, dict):
+        return data
+
+    enriched = copy.deepcopy(data)
+    confidence, factors = _estimate_response_confidence(tool_name, enriched)
+    existing_meta = enriched.get("_meta")
+    meta = existing_meta.copy() if isinstance(existing_meta, dict) else {}
+    meta.setdefault("confidence", confidence)
+    meta.setdefault("confidence_factors", factors)
+    meta.setdefault("response_scope", "tool_output")
+    enriched["_meta"] = meta
+    return enriched
 
 
 def cached(namespace: str, maxsize: int | None = None) -> Callable[[F], F]:
@@ -550,10 +708,11 @@ def format_success(tool_name: str, data: Any, metadata: dict | None = None) -> s
 
     Returns compact JSON string ready for MCP TextContent.
     """
+    sanitized_data = strip_cache_metadata(data)
     payload: dict[str, Any] = {
         "status": "success",
         "tool": tool_name,
-        "data": strip_cache_metadata(data),
+        "data": attach_response_meta(tool_name, sanitized_data),
     }
     if metadata:
         payload["metadata"] = metadata
@@ -627,6 +786,7 @@ __all__ = [
     "get_cache",
     "make_cache_key",
     "strip_cache_metadata",
+    "attach_response_meta",
     "rate_limited",
     "with_retry",
     "BioValidator",

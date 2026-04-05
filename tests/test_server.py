@@ -524,7 +524,12 @@ class TestStreamingProgress:
         )
         advanced_module = SimpleNamespace()
 
-        async def _fake_impl(gene_symbol: str, detail_level: str = "compact", progress_callback=None):
+        async def _fake_impl(
+            gene_symbol: str,
+            detail_level: str = "compact",
+            include_synthesis: bool = True,
+            progress_callback=None,
+        ):
             for layer_name, payload in [
                 ("genomics", {"symbol": gene_symbol}),
                 ("literature", {"total_publications": 2, "recent_papers": []}),

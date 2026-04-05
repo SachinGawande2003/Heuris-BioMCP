@@ -14,7 +14,14 @@ from uuid import uuid4
 import pytest
 
 import biomcp.utils as utils
-from biomcp.utils import CACHE_TTLS, BioValidator, get_cache, make_cache_key, strip_cache_metadata
+from biomcp.utils import (
+    CACHE_TTLS,
+    BioValidator,
+    attach_response_meta,
+    get_cache,
+    make_cache_key,
+    strip_cache_metadata,
+)
 
 # ── BioValidator ─────────────────────────────────────────────────────────────
 
@@ -125,6 +132,7 @@ class TestCache:
 
     def test_cache_ttl_anchors_for_reviewed_sources(self):
         assert CACHE_TTLS["fda"] == 3_600
+        assert CACHE_TTLS["chembl_registry"] == 604_800
         assert CACHE_TTLS["clinical_trials"] == 1_800
         assert CACHE_TTLS["multi_omics"] == 3_600
         assert CACHE_TTLS["variant"] == 86_400
@@ -179,6 +187,20 @@ class TestCache:
         assert "_cache" not in stripped
         assert "_cache" not in stripped["layers"]["genomics"]
         assert all("_cache" not in article for article in stripped["layers"]["literature"])
+
+    def test_attach_response_meta_adds_confidence_block(self):
+        payload = attach_response_meta(
+            "verify_biological_claim",
+            {
+                "confidence_score": 0.81,
+                "evidence_counts": {"supporting": 3, "contradicting": 0},
+                "databases_queried": ["PubMed", "Open Targets", "ClinVar"],
+            },
+        )
+
+        assert payload["_meta"]["response_scope"] == "tool_output"
+        assert payload["_meta"]["confidence"] >= 0.75
+        assert "confidence_factors" in payload["_meta"]
 
 
 @pytest.mark.asyncio

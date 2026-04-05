@@ -77,7 +77,10 @@ async def test_get_drug_targets_no_target(mock_http_client, mock_http_response):
     empty_resp = mock_http_response(json_data={"targets": []})
     mock_http_client.get = AsyncMock(return_value=empty_resp)
 
-    with patch("biomcp.tools.pathways.get_http_client", return_value=mock_http_client):
+    with (
+        patch("biomcp.tools.pathways.get_http_client", return_value=mock_http_client),
+        patch("biomcp.tools.pathways._load_chembl_target_registry", new=AsyncMock(return_value={"targets_by_symbol": {}})),
+    ):
         from biomcp.tools.pathways import get_drug_targets
 
         result = await get_drug_targets.__wrapped__.__wrapped__.__wrapped__("FAKEGENE")
@@ -153,7 +156,10 @@ async def test_get_drug_targets_prefers_exact_single_protein_target(
         side_effect=[search_resp, fusion_detail, egfr_detail, activity_resp]
     )
 
-    with patch("biomcp.tools.pathways.get_http_client", return_value=mock_http_client):
+    with (
+        patch("biomcp.tools.pathways.get_http_client", return_value=mock_http_client),
+        patch("biomcp.tools.pathways._load_chembl_target_registry", new=AsyncMock(return_value={"targets_by_symbol": {}})),
+    ):
         from biomcp.tools.pathways import get_drug_targets
 
         result = await get_drug_targets.__wrapped__.__wrapped__.__wrapped__("EGFR")
@@ -161,6 +167,53 @@ async def test_get_drug_targets_prefers_exact_single_protein_target(
     assert result["target_chembl_id"] == "CHEMBL203"
     assert result["target_name"] == "Epidermal growth factor receptor"
     assert result["drugs"][0]["molecule_name"] == "Gefitinib"
+
+
+@pytest.mark.asyncio
+async def test_get_drug_targets_uses_registry_cache_before_search(
+    mock_http_client,
+    mock_http_response,
+):
+    activity_resp = mock_http_response(
+        json_data={
+            "activities": [
+                {
+                    "molecule_chembl_id": "CHEMBL25",
+                    "molecule_pref_name": "Gefitinib",
+                    "standard_type": "IC50",
+                    "standard_value": "1.1",
+                    "standard_units": "nM",
+                    "standard_relation": "=",
+                    "assay_type": "B",
+                    "document_year": 2019,
+                }
+            ],
+            "page_meta": {"total_count": 1},
+        }
+    )
+    mock_http_client.get = AsyncMock(return_value=activity_resp)
+
+    with (
+        patch("biomcp.tools.pathways.get_http_client", return_value=mock_http_client),
+        patch(
+            "biomcp.tools.pathways._load_chembl_target_registry",
+            new=AsyncMock(return_value={
+                "targets_by_symbol": {
+                    "EGFR": {
+                        "target_chembl_id": "CHEMBL203",
+                        "pref_name": "Epidermal growth factor receptor",
+                    }
+                }
+            }),
+        ),
+    ):
+        from biomcp.tools.pathways import get_drug_targets
+
+        result = await get_drug_targets.__wrapped__.__wrapped__.__wrapped__("EGFR")
+
+    assert result["target_chembl_id"] == "CHEMBL203"
+    assert result["target_name"] == "Epidermal growth factor receptor"
+    assert mock_http_client.get.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -220,7 +273,10 @@ async def test_get_drug_targets_handles_chembl_http_error(mock_http_client, mock
     error_resp = mock_http_response(status_code=500)
     mock_http_client.get = AsyncMock(return_value=error_resp)
 
-    with patch("biomcp.tools.pathways.get_http_client", return_value=mock_http_client):
+    with (
+        patch("biomcp.tools.pathways.get_http_client", return_value=mock_http_client),
+        patch("biomcp.tools.pathways._load_chembl_target_registry", new=AsyncMock(return_value={"targets_by_symbol": {}})),
+    ):
         from biomcp.tools.pathways import get_drug_targets
 
         retrying_call = get_drug_targets.__wrapped__.__wrapped__.retry_with(wait=wait_none())

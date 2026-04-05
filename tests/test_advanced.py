@@ -279,7 +279,11 @@ async def test_multi_omics_gene_report_handles_partial_layer_failures():
     ):
         from biomcp.tools.advanced import multi_omics_gene_report
 
-        result = await multi_omics_gene_report.__wrapped__.__wrapped__("MYC", detail_level="standard")
+        result = await multi_omics_gene_report.__wrapped__.__wrapped__(
+            "MYC",
+            detail_level="standard",
+            include_synthesis=False,
+        )
 
     assert result["gene"] == "MYC"
     assert result["detail_level"] == "standard"
@@ -352,7 +356,11 @@ async def test_multi_omics_gene_report_streams_layers_as_they_finish():
     ):
         from biomcp.tools.advanced import _multi_omics_gene_report_impl
 
-        result = await _multi_omics_gene_report_impl("MYC", progress_callback=_capture_progress)
+        result = await _multi_omics_gene_report_impl(
+            "MYC",
+            include_synthesis=False,
+            progress_callback=_capture_progress,
+        )
 
     assert progress_events == [
         "literature",
@@ -399,12 +407,45 @@ async def test_multi_omics_gene_report_compact_mode_trims_layer_payloads():
     ):
         from biomcp.tools.advanced import multi_omics_gene_report
 
-        result = await multi_omics_gene_report.__wrapped__.__wrapped__("EGFR", detail_level="compact")
+        result = await multi_omics_gene_report.__wrapped__.__wrapped__(
+            "EGFR",
+            detail_level="compact",
+            include_synthesis=False,
+        )
 
     assert result["detail_level"] == "compact"
     assert "articles" not in result["layers"]["literature"]
     assert "top_trials" in result["layers"]["clinical_trials"]
     assert result["layers"]["genomics"]["summary"] == "A" * 280
+
+
+@pytest.mark.asyncio
+async def test_multi_omics_gene_report_includes_generated_claude_synthesis():
+    synthesis = {
+        "status": "generated",
+        "model": "claude-sonnet-test",
+        "narrative_paragraphs": ["p1", "p2", "p3"],
+        "clinical_implications": ["i1", "i2"],
+        "synthesis_confidence": 0.87,
+    }
+
+    with (
+        patch("biomcp.tools.ncbi.get_gene_info", new=AsyncMock(return_value={"symbol": "EGFR"})),
+        patch("biomcp.tools.ncbi.search_pubmed", new=AsyncMock(return_value={"total_found": 1, "articles": []})),
+        patch("biomcp.tools.pathways.get_reactome_pathways", new=AsyncMock(return_value={"pathways": []})),
+        patch("biomcp.tools.pathways.get_drug_targets", new=AsyncMock(return_value={"drugs": []})),
+        patch("biomcp.tools.pathways.get_gene_disease_associations", new=AsyncMock(return_value={"associations": []})),
+        patch("biomcp.tools.advanced.search_gene_expression", new=AsyncMock(return_value={"datasets": []})),
+        patch("biomcp.tools.advanced.search_clinical_trials", new=AsyncMock(return_value={"studies": []})),
+        patch("biomcp.tools.advanced._generate_multi_omics_synthesis", new=AsyncMock(return_value=synthesis)),
+    ):
+        from biomcp.tools.advanced import _multi_omics_gene_report_impl
+
+        result = await _multi_omics_gene_report_impl("EGFR", include_synthesis=True)
+
+    assert result["synthesis"]["status"] == "generated"
+    assert result["synthesis"]["narrative_paragraphs"] == ["p1", "p2", "p3"]
+    assert result["synthesis"]["clinical_implications"] == ["i1", "i2"]
 
 
 

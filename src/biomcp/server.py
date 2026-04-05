@@ -936,6 +936,10 @@ _FULL_TOOL_REGISTRY: list[Tool] = [
                 ["compact", "standard", "full"],
                 "compact",
             ),
+            "include_synthesis": _bool_prop(
+                "When true, add a Claude-written synthesis if ANTHROPIC_API_KEY is configured.",
+                True,
+            ),
         },
         ["gene_symbol"],
     ),
@@ -1032,10 +1036,11 @@ _FULL_TOOL_REGISTRY: list[Tool] = [
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     _tool(
         "verify_biological_claim",
-        "Verify a biological claim against 3â€“5 databases with graded evidence.",
+        "Verify a biological claim with structured claim decomposition and relation-specific database evidence.",
         {
             "claim": _str_prop("Natural language biological claim to verify."),
             "context_gene": _str_prop("Optional gene symbol to focus evidence gathering."),
+            "max_evidence_sources": _int_prop("Maximum evidence providers to query.", 5, 1, 8),
         },
         ["claim"],
     ),
@@ -1796,7 +1801,9 @@ _PUBLIC_TOOL_EXAMPLES: dict[str, list[dict[str, Any]]] = {
             "max_results": 5,
         }
     ],
-    "multi_omics_gene_report": [{"gene_symbol": "MYC", "detail_level": "compact"}],
+    "multi_omics_gene_report": [
+        {"gene_symbol": "MYC", "detail_level": "compact", "include_synthesis": True}
+    ],
     "predict_structure_boltz2": [
         {
             "mode": "structure",
@@ -1848,6 +1855,7 @@ _PUBLIC_TOOL_EXAMPLES: dict[str, list[dict[str, Any]]] = {
         {
             "claim": "KRAS G12C inhibitors improve progression-free survival in NSCLC",
             "context_gene": "KRAS",
+            "max_evidence_sources": 6,
         }
     ],
     "search_cbio_mutations": [
@@ -2269,6 +2277,7 @@ async def _session_workflow(
 async def _dispatch_multi_omics_gene_report(
     gene_symbol: str,
     detail_level: str = "compact",
+    include_synthesis: bool = True,
 ) -> dict[str, Any]:
     advanced_tools = _get_tool_modules()["advanced"]
 
@@ -2277,6 +2286,7 @@ async def _dispatch_multi_omics_gene_report(
             return await advanced_tools.multi_omics_gene_report(
                 gene_symbol=gene_symbol,
                 detail_level=detail_level,
+                include_synthesis=include_synthesis,
             )
 
         await reporter.log(
@@ -2284,6 +2294,7 @@ async def _dispatch_multi_omics_gene_report(
             {
                 "gene": gene_symbol,
                 "detail_level": detail_level,
+                "include_synthesis": include_synthesis,
                 "layers": [
                     "genomics",
                     "literature",
@@ -2297,12 +2308,21 @@ async def _dispatch_multi_omics_gene_report(
         )
 
         cache = get_cache("multi_omics")
-        cache_key = make_cache_key(gene_symbol, detail_level=detail_level)
+        cache_key = make_cache_key(
+            gene_symbol,
+            detail_level=detail_level,
+            include_synthesis=include_synthesis,
+        )
         if cache_key in cache:
             result = cache[cache_key]
             await reporter.finish(
                 f"served cached report for {gene_symbol}",
-                {"gene": gene_symbol, "cached": True, "detail_level": detail_level},
+                {
+                    "gene": gene_symbol,
+                    "cached": True,
+                    "detail_level": detail_level,
+                    "include_synthesis": include_synthesis,
+                },
             )
             return result
 
@@ -2315,6 +2335,7 @@ async def _dispatch_multi_omics_gene_report(
         result = await advanced_tools._multi_omics_gene_report_impl(
             gene_symbol,
             detail_level=detail_level,
+            include_synthesis=include_synthesis,
             progress_callback=_layer_progress,
         )
         cache[cache_key] = result

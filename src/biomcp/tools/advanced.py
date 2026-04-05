@@ -11,7 +11,9 @@ Fixes applied:
 from __future__ import annotations
 
 import asyncio
+import json
 import os
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -34,6 +36,7 @@ CLINTRIALS_BASE = "https://clinicaltrials.gov/api/v2"
 ENSEMBL_BASE    = "https://rest.ensembl.org"
 GEO_BASE        = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 HCA_BASE        = "https://service.azul.data.humancellatlas.org"
+ANTHROPIC_MESSAGES_API = "https://api.anthropic.com/v1/messages"
 
 _CT_HEADERS: dict[str, str] = {
     "Accept":          "application/json",
@@ -52,6 +55,9 @@ _VALID_PHASES = frozenset({"PHASE1", "PHASE2", "PHASE3", "PHASE4"})
 _CT_403_RETRY_ATTEMPTS = int(os.getenv("BIOMCP_CT_403_RETRY_ATTEMPTS", "3"))
 _CT_403_RETRY_BASE_DELAY_SECONDS = float(os.getenv("BIOMCP_CT_403_RETRY_BASE_DELAY", "2"))
 _CT_403_RETRY_MAX_DELAY_SECONDS = float(os.getenv("BIOMCP_CT_403_RETRY_MAX_DELAY", "8"))
+_CLAUDE_SYNTHESIS_ENABLED = os.getenv("BIOMCP_ENABLE_CLAUDE_SYNTHESIS", "1").strip().lower()
+_CLAUDE_SYNTHESIS_MODEL = os.getenv("BIOMCP_CLAUDE_SYNTHESIS_MODEL", "claude-sonnet-4-20250514")
+_CLAUDE_SYNTHESIS_MAX_TOKENS = int(os.getenv("BIOMCP_CLAUDE_SYNTHESIS_MAX_TOKENS", "700"))
 
 
 async def _clinical_trials_get_with_403_retry(
@@ -580,9 +586,129 @@ def _shape_multi_omics_layer(
     return payload
 
 
+def _claude_synthesis_enabled() -> bool:
+    return _CLAUDE_SYNTHESIS_ENABLED not in {"0", "false", "off", "no"}
+
+
+def _anthropic_api_key() -> str:
+    return os.getenv("ANTHROPIC_API_KEY", "").strip()
+
+
+def _build_multi_omics_synthesis_prompt(
+    gene_symbol: str,
+    layers: dict[str, dict[str, Any]],
+) -> str:
+    compact_layers = {
+        label: _compact_multi_omics_layer(label, strip_cache_metadata(payload))
+        for label, payload in layers.items()
+        if isinstance(payload, dict)
+    }
+    return (
+        "You are writing a synthesis for a bioinformatics MCP tool.\n"
+        "Use only the provided JSON facts.\n"
+        f"Gene: {gene_symbol}\n"
+        "Return strict JSON with keys:\n"
+        "narrative_paragraphs: array of exactly 3 strings\n"
+        "clinical_implications: array of 2 to 5 concise strings\n"
+        "synthesis_confidence: number from 0.0 to 1.0\n"
+        "Do not include markdown fences or extra text.\n"
+        f"Facts JSON:\n{json.dumps(compact_layers, sort_keys=True, default=str)}"
+    )
+
+
+def _extract_anthropic_text(payload: dict[str, Any]) -> str:
+    content = payload.get("content", [])
+    if not isinstance(content, list):
+        return ""
+    parts = [
+        block.get("text", "")
+        for block in content
+        if isinstance(block, dict) and block.get("type") == "text"
+    ]
+    return "\n".join(part for part in parts if part).strip()
+
+
+async def _generate_multi_omics_synthesis(
+    gene_symbol: str,
+    layers: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    api_key = _anthropic_api_key()
+    if not _claude_synthesis_enabled():
+        return {
+            "status": "disabled",
+            "reason": "Claude synthesis is disabled by configuration.",
+        }
+    if not api_key:
+        return {
+            "status": "disabled",
+            "reason": "ANTHROPIC_API_KEY is not configured.",
+        }
+
+    client = await get_http_client()
+    resp = await client.post(
+        ANTHROPIC_MESSAGES_API,
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": _CLAUDE_SYNTHESIS_MODEL,
+            "max_tokens": _CLAUDE_SYNTHESIS_MAX_TOKENS,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": _build_multi_omics_synthesis_prompt(gene_symbol, layers),
+                }
+            ],
+        },
+    )
+    if resp.status_code in {401, 403}:
+        return {
+            "status": "failed",
+            "error": "Anthropic API rejected the synthesis request. Check ANTHROPIC_API_KEY.",
+            "status_code": resp.status_code,
+        }
+    resp.raise_for_status()
+
+    response_payload = resp.json()
+    text = _extract_anthropic_text(response_payload)
+    if not text:
+        return {
+            "status": "failed",
+            "error": "Anthropic API returned no text blocks for synthesis.",
+            "model": _CLAUDE_SYNTHESIS_MODEL,
+        }
+
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        paragraphs = [segment.strip() for segment in text.split("\n\n") if segment.strip()]
+        return {
+            "status": "generated",
+            "model": _CLAUDE_SYNTHESIS_MODEL,
+            "generated_at": int(time.time()),
+            "narrative_paragraphs": paragraphs[:3],
+            "clinical_implications": [],
+            "raw_text": text,
+        }
+
+    paragraphs = parsed.get("narrative_paragraphs", [])
+    implications = parsed.get("clinical_implications", [])
+    return {
+        "status": "generated",
+        "model": _CLAUDE_SYNTHESIS_MODEL,
+        "generated_at": int(time.time()),
+        "narrative_paragraphs": [str(item).strip() for item in paragraphs[:3] if str(item).strip()],
+        "clinical_implications": [str(item).strip() for item in implications[:5] if str(item).strip()],
+        "synthesis_confidence": parsed.get("synthesis_confidence"),
+    }
+
+
 async def _multi_omics_gene_report_impl(
     gene_symbol: str,
     detail_level: str = "standard",
+    include_synthesis: bool = True,
     progress_callback: _MultiOmicsProgressCallback | None = None,
 ) -> dict[str, Any]:
     from biomcp.tools.ncbi import get_gene_info, search_pubmed
@@ -637,12 +763,18 @@ async def _multi_omics_gene_report_impl(
         for label, _ in layer_calls
         if label in completed_layers
     }
+    synthesis = (
+        await _generate_multi_omics_synthesis(gene_symbol, ordered_layers)
+        if include_synthesis
+        else {"status": "disabled", "reason": "Synthesis explicitly disabled for this call."}
+    )
 
     return {
         "gene":          gene_symbol,
         "report_type":   "multi_omics_integrated",
         "detail_level":  detail_level,
         "layers":        ordered_layers,
+        "synthesis":     synthesis,
         "data_sources": [
             "NCBI Gene", "PubMed", "Reactome", "ChEMBL",
             "Open Targets", "NCBI GEO", "ClinicalTrials.gov",
@@ -658,13 +790,18 @@ async def _multi_omics_gene_report_impl(
 async def multi_omics_gene_report(
     gene_symbol: str,
     detail_level: str = "compact",
+    include_synthesis: bool = True,
 ) -> dict[str, Any]:
     """
     Generate a comprehensive multi-omics report for a gene.
 
     Queries 7 databases simultaneously and returns an integrated report.
     """
-    return await _multi_omics_gene_report_impl(gene_symbol, detail_level=detail_level)
+    return await _multi_omics_gene_report_impl(
+        gene_symbol,
+        detail_level=detail_level,
+        include_synthesis=include_synthesis,
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

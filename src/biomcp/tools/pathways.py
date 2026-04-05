@@ -45,6 +45,8 @@ KEGG_ORGANISM_TO_NCBI = {
     "sce": "saccharomyces cerevisiae",
 }
 
+_CHEMBL_REGISTRY_TARGET_LIMIT = 2_000
+
 
 def _kegg_organism_name(organism: str) -> str:
     return KEGG_ORGANISM_TO_NCBI.get(organism.lower(), organism.replace("_", " "))
@@ -180,6 +182,61 @@ async def _select_best_chembl_target(
         reverse=True,
     )
     return scored_candidates[0][1]
+
+
+@cached("chembl_registry")
+@rate_limited("chembl")
+@with_retry(max_attempts=3)
+async def _load_chembl_target_registry(
+    max_targets: int = _CHEMBL_REGISTRY_TARGET_LIMIT,
+) -> dict[str, Any]:
+    client = await get_http_client()
+    registry: dict[str, dict[str, str]] = {}
+    offset = 0
+    page_size = min(max_targets, 1_000)
+    loaded_targets = 0
+
+    while loaded_targets < max_targets:
+        resp = await client.get(
+            f"{CHEMBL_BASE}/target.json",
+            params={
+                "target_type": "SINGLE PROTEIN",
+                "organism": "Homo sapiens",
+                "limit": page_size,
+                "offset": offset,
+            },
+            headers={"Accept": "application/json"},
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        targets = payload.get("targets", [])
+        if not targets:
+            break
+
+        for target in targets:
+            if loaded_targets >= max_targets:
+                break
+            target_id = str(target.get("target_chembl_id", "")).strip()
+            if not target_id:
+                continue
+            mapping = {
+                "target_chembl_id": target_id,
+                "pref_name": str(target.get("pref_name", "")),
+            }
+            for symbol in _chembl_target_symbols(target):
+                if 2 <= len(symbol) <= 15 and symbol not in registry:
+                    registry[symbol] = mapping
+            loaded_targets += 1
+
+        page_meta = payload.get("page_meta", {})
+        if not page_meta.get("next"):
+            break
+        offset += len(targets)
+
+    return {
+        "targets_by_symbol": registry,
+        "loaded_targets": loaded_targets,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -520,26 +577,37 @@ async def get_drug_targets(
     gene_symbol = BioValidator.validate_gene_symbol(gene_symbol)
     max_results = BioValidator.clamp_int(max_results, 1, 100, "max_results")
     client      = await get_http_client()
+    registry_payload = await _load_chembl_target_registry()
+    registry = (
+        registry_payload.get("targets_by_symbol", {})
+        if isinstance(registry_payload, dict)
+        else {}
+    )
 
     # Step 1 — find target
-    tgt_resp = await client.get(
-        f"{CHEMBL_BASE}/target/search.json",
-        params={"q": gene_symbol, "organism": "Homo sapiens", "limit": 10},
-    )
-    tgt_resp.raise_for_status()
-    targets = tgt_resp.json().get("targets", [])
+    registry_hit = registry.get(_normalize_chembl_symbol(gene_symbol))
+    if registry_hit:
+        target_id = registry_hit.get("target_chembl_id", "")
+        target_name = registry_hit.get("pref_name", "")
+    else:
+        tgt_resp = await client.get(
+            f"{CHEMBL_BASE}/target/search.json",
+            params={"q": gene_symbol, "organism": "Homo sapiens", "limit": 10},
+        )
+        tgt_resp.raise_for_status()
+        targets = tgt_resp.json().get("targets", [])
 
-    if not targets:
-        return {"gene": gene_symbol, "drugs": [],
-                "error": f"Target '{gene_symbol}' not found in ChEMBL."}
+        if not targets:
+            return {"gene": gene_symbol, "drugs": [],
+                    "error": f"Target '{gene_symbol}' not found in ChEMBL."}
 
-    best_target = await _select_best_chembl_target(client, gene_symbol=gene_symbol, targets=targets)
-    if not best_target:
-        return {"gene": gene_symbol, "drugs": [],
-                "error": f"Target '{gene_symbol}' not found in ChEMBL."}
+        best_target = await _select_best_chembl_target(client, gene_symbol=gene_symbol, targets=targets)
+        if not best_target:
+            return {"gene": gene_symbol, "drugs": [],
+                    "error": f"Target '{gene_symbol}' not found in ChEMBL."}
 
-    target_id   = best_target.get("target_chembl_id", "")
-    target_name = best_target.get("pref_name", "")
+        target_id   = best_target.get("target_chembl_id", "")
+        target_name = best_target.get("pref_name", "")
 
     # Step 2 — get activities
     act_resp = await client.get(
