@@ -39,6 +39,10 @@ _ENSEMBL_BASE = "https://rest.ensembl.org"
 _CBIO_BASE    = "https://www.cbioportal.org/api"
 
 
+def _normalize_interpro_protein_accession(value: str) -> str:
+    return value.strip().upper().split("-")[0]
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. bulk_gene_analysis
 # ─────────────────────────────────────────────────────────────────────────────
@@ -629,7 +633,10 @@ async def get_protein_domain_structure(
         # Get positional data
         proteins = entry.get("proteins", [])
         for prot in proteins:
-            if prot.get("accession", "").upper() != accession:
+            prot_acc = _normalize_interpro_protein_accession(
+                str(prot.get("accession") or prot.get("uniprot_accession") or "")
+            )
+            if prot_acc != accession:
                 continue
             for loc in prot.get("entry_protein_locations", []):
                 for frag in loc.get("fragments", []):
@@ -654,6 +661,14 @@ async def get_protein_domain_structure(
                         "interpro_url":  f"https://www.ebi.ac.uk/interpro/entry/interpro/{em.get('accession', '')}",
                     })
             break
+
+    if not domains and entries_data.get("results"):
+        logger.warning(
+            "[InterPro] No domains extracted for {} despite {} entry results; "
+            "check protein accession keys in response.",
+            accession,
+            len(entries_data.get("results", [])),
+        )
 
     # Sort domains by start position
     domains.sort(key=lambda x: x["start"])
